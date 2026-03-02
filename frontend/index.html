@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArchWatch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header id="header">
+    <div class="header-left">
+      <span class="brand">ARCHWATCH</span>
+      <span class="ws-indicator" id="ws-indicator" title="WebSocket status">
+        <span class="ws-dot" id="ws-dot"></span>
+        <span class="ws-label" id="ws-label">connecting</span>
+      </span>
+    </div>
+    <div class="header-stats" id="header-stats">
+      <span class="stat-item"><span class="stat-value" id="stat-modules">—</span> <span class="stat-label">modules</span></span>
+      <span class="stat-sep">·</span>
+      <span class="stat-item"><span class="stat-value" id="stat-files">—</span> <span class="stat-label">files</span></span>
+      <span class="stat-sep">·</span>
+      <span class="stat-item"><span class="stat-value" id="stat-lines">—</span> <span class="stat-label">lines</span></span>
+      <span class="stat-sep">·</span>
+      <span class="stat-item"><span class="stat-value" id="stat-ms">—</span><span class="stat-label">ms</span></span>
+    </div>
+    <div class="header-right">
+      <button class="btn-icon" id="btn-reset" title="Reset view">⊙</button>
+    </div>
+  </header>
+
+  <div id="diagram"></div>
+
+  <div id="tooltip" class="tooltip hidden">
+    <div class="tooltip-title" id="tooltip-title"></div>
+    <div class="tooltip-body" id="tooltip-body"></div>
+  </div>
+
+  <div id="legend">
+    <div class="legend-title">LEGEND</div>
+    <div class="legend-item">
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <rect x="1" y="1" width="14" height="14" rx="3" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+        <text x="8" y="11" text-anchor="middle" fill="#6b7d93" font-size="8" font-family="JetBrains Mono">M</text>
+      </svg>
+      <span>Module</span>
+    </div>
+    <div class="legend-item">
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <rect x="1" y="1" width="14" height="14" rx="3" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+        <text x="8" y="11" text-anchor="middle" fill="#6b7d93" font-size="8" font-family="JetBrains Mono">F</text>
+      </svg>
+      <span>File</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line"></div>
+      <span>Dependency</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line strong"></div>
+      <span>Strong dep</span>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
