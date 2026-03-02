@@ -1322,12 +1322,15 @@
       const resp = await fetch(`/api/branch-diff?base=${encodeURIComponent(baseBranch)}`);
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        console.error('Branch diff failed:', err.error || resp.statusText);
+        const msg = err.error || resp.statusText;
+        console.error('Branch diff failed:', msg);
+        showDiffError(msg);
         return null;
       }
       return await resp.json();
     } catch (e) {
       console.error('Branch diff fetch error:', e);
+      showDiffError('Could not connect to diff API');
       return null;
     }
   }
@@ -1449,7 +1452,6 @@
       if (diffData) {
         applyDiffOverlay(diffData);
       } else {
-        showDiffError('No git repository found — diff view requires a git repo');
         setTimeout(() => switchMode('live'), 3000);
         return;
       }

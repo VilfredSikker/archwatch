@@ -8,7 +8,7 @@ pub use graph::GraphData;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-pub fn analyze(path: &Path) -> anyhow::Result<GraphData> {
+pub fn analyze(path: &Path, flatten: &[String]) -> anyhow::Result<GraphData> {
     let start = Instant::now();
 
     let (mut nodes, language_map) = scanner::scan(path)?;
@@ -31,7 +31,7 @@ pub fn analyze(path: &Path) -> anyhow::Result<GraphData> {
                 .or_insert(0) += edge.weight;
         }
     }
-    let edges: Vec<graph::Edge> = edge_map
+    let mut edges: Vec<graph::Edge> = edge_map
         .into_iter()
         .map(|((source, target), weight)| graph::Edge {
             source,
@@ -66,6 +66,47 @@ pub fn analyze(path: &Path) -> anyhow::Result<GraphData> {
         languages,
         analysis_ms,
     };
+
+    // Flatten configured directories: remove the container node, promote children
+    for prefix in flatten {
+        // Remove the container module node
+        nodes.retain(|n| n.id != *prefix);
+
+        // Strip prefix from child node IDs, clusters, and file paths
+        let prefix_slash = format!("{}/", prefix);
+        for node in &mut nodes {
+            if node.id.starts_with(&prefix_slash) {
+                node.id = node.id[prefix_slash.len()..].to_string();
+            }
+            if node.cluster.starts_with(&prefix_slash) {
+                node.cluster = node.cluster[prefix_slash.len()..].to_string();
+            } else if node.cluster == *prefix {
+                node.cluster = String::new();
+            }
+            node.files = node
+                .files
+                .iter()
+                .map(|f| {
+                    if f.starts_with(&prefix_slash) {
+                        f[prefix_slash.len()..].to_string()
+                    } else {
+                        f.clone()
+                    }
+                })
+                .collect();
+        }
+
+        // Update edge references
+        edges.retain(|e| e.source != *prefix && e.target != *prefix);
+        for edge in &mut edges {
+            if edge.source.starts_with(&prefix_slash) {
+                edge.source = edge.source[prefix_slash.len()..].to_string();
+            }
+            if edge.target.starts_with(&prefix_slash) {
+                edge.target = edge.target[prefix_slash.len()..].to_string();
+            }
+        }
+    }
 
     // Sort nodes for deterministic output
     nodes.sort_by(|a, b| a.id.cmp(&b.id));

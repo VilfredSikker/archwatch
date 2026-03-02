@@ -8,13 +8,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-pub async fn serve(graph: GraphData, addr: &str, watch_root: PathBuf) -> anyhow::Result<()> {
+pub async fn serve(graph: GraphData, addr: &str, watch_root: PathBuf, flatten: Vec<String>) -> anyhow::Result<()> {
     let (broadcast_tx, _) = broadcast::channel::<String>(64);
 
     let state = Arc::new(AppState {
         graph: tokio::sync::RwLock::new(graph),
         broadcast_tx: broadcast_tx.clone(),
         watch_root: watch_root.clone(),
+        flatten,
     });
 
     let state_for_watcher = Arc::clone(&state);
@@ -33,7 +34,7 @@ pub async fn serve(graph: GraphData, addr: &str, watch_root: PathBuf) -> anyhow:
                 .filter_map(|p| p.strip_prefix(&root).ok())
                 .map(|p| p.to_string_lossy().into_owned())
                 .collect();
-            match analyzer::analyze(&root) {
+            match analyzer::analyze(&root, &state_for_watcher.flatten) {
                 Ok(new_graph) => {
                     let affected_nodes: Vec<String> = {
                         let old_graph = state_for_watcher.graph.read().await;

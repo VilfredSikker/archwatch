@@ -15,6 +15,11 @@ pub struct Args {
     /// Don't open browser automatically
     #[arg(long)]
     pub no_open: bool,
+
+    /// Flatten these directories (remove as nodes, promote children).
+    /// Comma-separated, e.g. --flatten src,app
+    #[arg(long, value_delimiter = ',')]
+    pub flatten: Vec<String>,
 }
 
 

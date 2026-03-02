@@ -7,6 +7,7 @@ pub struct AppState {
     pub graph: RwLock<GraphData>,
     pub broadcast_tx: broadcast::Sender<String>,
     pub watch_root: PathBuf,
+    pub flatten: Vec<String>,
 }
 
 

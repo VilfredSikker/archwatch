@@ -14,7 +14,7 @@ async fn main() -> anyhow::Result<()> {
     let path = args.path.canonicalize().unwrap_or(args.path.clone());
 
     eprintln!("Analyzing {}...", path.display());
-    let graph = analyzer::analyze(&path)?;
+    let graph = analyzer::analyze(&path, &args.flatten)?;
     eprintln!(
         "Found {} nodes, {} edges in {}ms",
         graph.nodes.len(),
@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     eprintln!("Server running at {}", url);
-    server::serve(graph, &addr, path).await?;
+    server::serve(graph, &addr, path, args.flatten).await?;
 
     Ok(())
 }

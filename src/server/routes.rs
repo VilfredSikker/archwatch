@@ -38,7 +38,32 @@ async fn get_branch_diff(
 ) -> impl IntoResponse {
     let base = query.base.unwrap_or_else(|| "main".to_string());
     match git_diff::diff_against_branch(&state.watch_root, &base) {
-        Ok(diff) => {
+        Ok(mut diff) => {
+            // Apply flatten prefixes to diff paths so they match flattened node IDs
+            for prefix in &state.flatten {
+                let prefix_slash = format!("{}/", prefix);
+                for file in &mut diff.files {
+                    if file.path.starts_with(&prefix_slash) {
+                        file.path = file.path[prefix_slash.len()..].to_string();
+                    }
+                }
+                diff.summary.affected_modules = diff
+                    .summary
+                    .affected_modules
+                    .iter()
+                    .map(|m| {
+                        if m.starts_with(&prefix_slash) {
+                            m[prefix_slash.len()..].to_string()
+                        } else if m == prefix {
+                            String::new()
+                        } else {
+                            m.clone()
+                        }
+                    })
+                    .filter(|m| !m.is_empty())
+                    .collect();
+            }
+
             let response = serde_json::json!({
                 "type": "branch_diff",
                 "diff": diff

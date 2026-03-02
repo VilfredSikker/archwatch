@@ -48,7 +48,6 @@ pub fn diff_against_branch(repo_path: &Path, base_branch: &str) -> anyhow::Resul
         })
         .unwrap_or_default();
 
-    let head = repo.head()?.peel_to_commit()?;
     let head_branch_name = repo
         .head()?
         .shorthand()
@@ -62,20 +61,9 @@ pub fn diff_against_branch(repo_path: &Path, base_branch: &str) -> anyhow::Resul
 
     let base_tree = base_commit.tree()?;
 
-    // Compare base branch tree against working directory (staged + unstaged changes).
-    // This captures uncommitted work, which is what users typically want to see.
-    // Falls back to tree-to-tree comparison if on a different branch with commits.
-    let diff = if head_branch_name == base_branch {
-        // Same branch: show working directory changes vs the branch
-        repo.diff_tree_to_workdir_with_index(Some(&base_tree), None)?
-    } else {
-        // Different branch: show committed differences + working directory
-        let head_tree = head.tree()?;
-        let mut diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&head_tree), None)?;
-        let workdir_diff = repo.diff_tree_to_workdir_with_index(Some(&head_tree), None)?;
-        diff.merge(&workdir_diff)?;
-        diff
-    };
+    // Compare base branch tree against working directory (staged + unstaged).
+    // This captures both committed branch differences and uncommitted work in one pass.
+    let diff = repo.diff_tree_to_workdir_with_index(Some(&base_tree), None)?;
 
     let mut files: Vec<DiffFile> = Vec::new();
     let mut module_set = std::collections::HashSet::new();
