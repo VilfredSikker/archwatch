@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArchWatch TUI Mockup — Terminal Simulation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #484f58;
+      --text-bright: #f0f6fc;
+      --accent: #58a6ff;
+      --green: #7ee787;
+      --green-dim: #238636;
+      --red: #f85149;
+      --yellow: #d29922;
+      --yellow-bright: #e3b341;
+      --purple: #bc8cff;
+      --cyan: #39c5cf;
+      --orange: #f0883e;
+    }
+
+    body {
+      background: #000;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .terminal {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 1200px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+    }
+
+    .terminal-titlebar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #f85149; }
+    .dot-yellow { background: #d29922; }
+    .dot-green { background: #7ee787; }
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .terminal-body {
+      padding: 0;
+      font-size: 12.5px;
+      line-height: 1.35;
+      overflow: hidden;
+    }
+
+    /* TUI layout */
+    .tui-container {
+      display: flex;
+      height: 680px;
+    }
+
+    .tui-sidebar {
+      width: 280px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .tui-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .tui-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 4px 12px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-dim);
+    }
+
+    .tui-header .label { color: var(--accent); font-weight: 600; }
+    .tui-header .active-label { color: var(--green); }
+
+    .tui-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+    }
+
+    .tui-content::-webkit-scrollbar { width: 4px; }
+    .tui-content::-webkit-scrollbar-track { background: var(--bg); }
+    .tui-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .tui-statusbar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 3px 12px;
+      font-size: 10.5px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-dim);
+    }
+
+    /* Diagram area */
+    .diagram-ascii {
+      padding: 8px 12px;
+      white-space: pre;
+      font-size: 12px;
+      line-height: 1.3;
+      color: var(--text-dim);
+      min-height: 100%;
+      position: relative;
+    }
+
+    /* Sidebar file list */
+    .file-entry {
+      padding: 3px 12px;
+      font-size: 11.5px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .file-entry:hover { background: rgba(88,166,255,0.06); }
+    .file-entry.selected { background: rgba(88,166,255,0.1); border-left-color: var(--accent); }
+    .file-entry.changed-active {
+      border-left-color: var(--green);
+      background: rgba(126,231,135,0.06);
+    }
+    .file-entry.changed-recent {
+      border-left-color: var(--yellow);
+      background: rgba(210,153,34,0.04);
+    }
+
+    .file-name { color: var(--text); }
+    .file-lines { color: var(--text-dim); font-size: 10px; }
+    .file-badge {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .badge-active { background: rgba(126,231,135,0.15); color: var(--green); }
+    .badge-recent { background: rgba(210,153,34,0.12); color: var(--yellow-bright); }
+
+    /* Activity feed */
+    .activity-entry {
+      padding: 6px 12px;
+      border-bottom: 1px solid rgba(48,54,61,0.4);
+      font-size: 11px;
+    }
+    .activity-time { color: var(--text-dim); font-size: 10px; }
+    .activity-file { color: var(--accent); }
+    .activity-desc { color: var(--text-dim); font-size: 10.5px; }
+    .activity-stats { font-size: 10px; }
+
+    /* Keyboard hints */
+    .kbd {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0px 4px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* Color classes */
+    .c-green { color: var(--green); }
+    .c-red { color: var(--red); }
+    .c-yellow { color: var(--yellow-bright); }
+    .c-accent { color: var(--accent); }
+    .c-purple { color: var(--purple); }
+    .c-cyan { color: var(--cyan); }
+    .c-dim { color: var(--text-dim); }
+    .c-bright { color: var(--text-bright); }
+    .c-orange { color: var(--orange); }
+
+    /* Pulsing for active nodes */
+    @keyframes ascii-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .ascii-pulse { animation: ascii-pulse 1.5s ease-in-out infinite; }
+
+    @keyframes ascii-glow {
+      0%, 100% { opacity: 0.9; }
+      50% { opacity: 0.6; }
+    }
+    .ascii-glow { animation: ascii-glow 2.5s ease-in-out infinite; }
+
+    /* Tab switcher */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+    }
+    .view-tab {
+      padding: 4px 12px;
+      font-size: 11px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.15s;
+    }
+    .view-tab.active {
+      color: var(--accent);
+      background: rgba(88,166,255,0.08);
+    }
+    .view-tab:hover:not(.active) { color: var(--text); }
+
+    /* Controls bar */
+    .controls-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .control-btn {
+      background: rgba(88,166,255,0.08);
+      border: 1px solid rgba(88,166,255,0.2);
+      color: var(--accent);
+      padding: 3px 10px;
+      border-radius: 3px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .control-btn:hover { background: rgba(88,166,255,0.15); }
+    .control-btn.green {
+      background: rgba(126,231,135,0.08);
+      border-color: rgba(126,231,135,0.3);
+      color: var(--green);
+    }
+    .control-btn.green:hover { background: rgba(126,231,135,0.15); }
+    .control-btn.red {
+      background: rgba(248,81,73,0.08);
+      border-color: rgba(248,81,73,0.3);
+      color: var(--red);
+    }
+  </style>
+</head>
+<body>
+
+<div class="terminal">
+  <!-- Title bar -->
+  <div class="terminal-titlebar">
+    <div class="terminal-dot dot-red"></div>
+    <div class="terminal-dot dot-yellow"></div>
+    <div class="terminal-dot dot-green"></div>
+    <div class="terminal-title">aw — archwatch v0.1 — easy-review-agent-terminal-panel — 148×52</div>
+  </div>
+
+  <!-- Controls (simulated, outside terminal chrome) -->
+  <div class="controls-bar">
+    <span style="font-size:11px; color: var(--text-dim);">Demo:</span>
+    <button class="control-btn green" onclick="simulateChange()">▶ Simulate Change</button>
+    <button class="control-btn" id="auto-btn" onclick="toggleAutoDemo()">⟳ Auto Demo</button>
+    <span style="flex:1"></span>
+    <span style="font-size:10px; color: var(--text-dim);">This simulates what it would feel like in a real terminal</span>
+  </div>
+
+  <div class="terminal-body">
+    <div class="tui-container">
+
+      <!-- LEFT SIDEBAR -->
+      <div class="tui-sidebar">
+        <!-- Sidebar header -->
+        <div class="tui-header">
+          <span><span class="label">MODULES</span> <span class="c-dim">(8)</span></span>
+          <span class="active-label" id="watch-indicator">● watching</span>
+        </div>
+
+        <!-- Module list -->
+        <div class="tui-content" id="module-list" style="flex: 1; border-bottom: 1px solid var(--border);">
+          <!-- populated by JS -->
+        </div>
+
+        <!-- Activity header -->
+        <div class="tui-header">
+          <span><span class="label">ACTIVITY</span></span>
+          <span class="c-dim" id="activity-count">0 changes</span>
+        </div>
+
+        <!-- Activity feed -->
+        <div class="tui-content" id="activity-feed" style="flex: 1;">
+          <div style="padding: 12px; color: var(--text-dim); font-size: 11px; text-align: center;">
+            Waiting for changes...
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN DIAGRAM AREA -->
+      <div class="tui-main">
+        <div class="tui-header">
+          <div class="view-tabs">
+            <button class="view-tab active" data-view="arch" onclick="switchView('arch')">Architecture</button>
+            <button class="view-tab" data-view="deps" onclick="switchView('deps')">Dependencies</button>
+            <button class="view-tab" data-view="stats" onclick="switchView('stats')">Stats</button>
+          </div>
+          <span class="c-dim">
+            <span class="kbd">z</span> zoom
+            <span class="kbd">h</span> heatmap
+            <span class="kbd">?</span> help
+          </span>
+        </div>
+
+        <!-- Diagram content -->
+        <div class="tui-content" style="flex: 1;">
+          <div class="diagram-ascii" id="diagram-area"><!-- populated by JS --></div>
+        </div>
+
+        <!-- Detail bar at bottom of diagram area -->
+        <div id="detail-bar" class="tui-header" style="min-height: 22px; border-top: 1px solid var(--border); border-bottom: none;">
+          <span class="c-dim" id="detail-text">← Select a module for details</span>
+          <span class="c-dim" id="detail-right"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="tui-statusbar">
+      <span>
+        <span class="c-accent">aw</span>
+        <span class="c-dim">│</span>
+        <span class="c-dim">files:</span><span class="c-green" id="sb-files">0</span>
+        <span class="c-dim">│</span>
+        <span class="c-dim">modules:</span><span class="c-yellow" id="sb-modules">0</span>
+        <span class="c-dim">│</span>
+        <span class="c-green" id="sb-added">+0</span>
+        <span class="c-red" id="sb-removed">-0</span>
+      </span>
+      <span>
+        <span class="kbd">q</span><span class="c-dim"> quit</span>
+        <span class="kbd">Tab</span><span class="c-dim"> focus</span>
+        <span class="kbd">Enter</span><span class="c-dim"> expand</span>
+        <span class="kbd">1-3</span><span class="c-dim"> zoom level</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===================== STATE =====================
+  const modules = [
+    { id: 'app',     name: 'app/',       files: ['state.rs','filter.rs'], lines: 5955, status: 'normal', desc: 'App state, navigation, comments, filter system' },
+    { id: 'ui',      name: 'ui/',        files: ['diff_view.rs','file_tree.rs','panel.rs','status_bar.rs','styles.rs','highlight.rs','overlay.rs','settings.rs'], lines: 6200, status: 'normal', desc: 'Ratatui rendering, viewport-based, syntax highlighting' },
+    { id: 'git',     name: 'git/',       files: ['diff.rs','status.rs'], lines: 2121, status: 'normal', desc: 'Git diff parsing, staging, worktrees, commit log' },
+    { id: 'ai',      name: 'ai/',        files: ['review.rs','loader.rs','relocate.rs'], lines: 2954, status: 'normal', desc: 'AI review data model, sidecar loader, comment relocation' },
+    { id: 'main',    name: 'main.rs',    files: ['main.rs'], lines: 1531, status: 'normal', desc: 'Event loop, CLI parsing, input routing' },
+    { id: 'github',  name: 'github.rs',  files: ['github.rs'], lines: 898, status: 'normal', desc: 'GitHub PR sync, gh CLI wrapper' },
+    { id: 'config',  name: 'config.rs',  files: ['config.rs'], lines: 346, status: 'normal', desc: 'TOML config, feature flags, settings' },
+    { id: 'watch',   name: 'watch/',     files: ['mod.rs'], lines: 64, status: 'normal', desc: 'File watcher, notify + debounce' },
+  ];
+
+  const changeScenarios = [
+    { moduleId: 'ui', file: 'diff_view.rs', desc: 'Update viewport rendering', added: 23, removed: 8 },
+    { moduleId: 'app', file: 'state.rs', desc: 'Add bookmark nav to App', added: 45, removed: 12 },
+    { moduleId: 'git', file: 'diff.rs', desc: 'Fix binary file parser', added: 7, removed: 3 },
+    { moduleId: 'ai', file: 'review.rs', desc: 'Add staleness check', added: 18, removed: 5 },
+    { moduleId: 'ui', file: 'styles.rs', desc: 'Adjust highlight contrast', added: 4, removed: 4 },
+    { moduleId: 'main', file: 'main.rs', desc: 'Wire split diff keybind', added: 12, removed: 2 },
+    { moduleId: 'github', file: 'github.rs', desc: 'PR merge commit detect', added: 31, removed: 9 },
+    { moduleId: 'config', file: 'config.rs', desc: 'Add blame feature flag', added: 8, removed: 1 },
+    { moduleId: 'app', file: 'filter.rs', desc: 'New "modified only" preset', added: 15, removed: 0 },
+    { moduleId: 'watch', file: 'mod.rs', desc: 'Watch .git/refs/', added: 11, removed: 3 },
+    { moduleId: 'ai', file: 'loader.rs', desc: 'Switch to inotify', added: 28, removed: 14 },
+    { moduleId: 'ui', file: 'file_tree.rs', desc: 'Change count badges', added: 19, removed: 6 },
+  ];
+
+  let scenarioIdx = 0;
+  let activityLog = [];
+  let stats = { files: 0, modules: new Set(), added: 0, removed: 0 };
+  let autoRunning = false;
+  let autoTimer = null;
+  let selectedModule = null;
+
+  // ===================== RENDER MODULE LIST =====================
+  function renderModuleList() {
+    const el = document.getElementById('module-list');
+    el.innerHTML = modules.map(m => {
+      const sel = selectedModule === m.id ? ' selected' : '';
+      const statusClass = m.status === 'active' ? ' changed-active' : m.status === 'recent' ? ' changed-recent' : '';
+      const badge = m.status === 'active'
+        ? '<span class="file-badge badge-active">CHANGED</span>'
+        : m.status === 'recent'
+        ? '<span class="file-badge badge-recent">recent</span>'
+        : `<span class="file-lines">${m.lines}</span>`;
+      return `<div class="file-entry${sel}${statusClass}" onclick="selectModule('${m.id}')">
+        <span class="file-name">${m.status === 'active' ? '<span class="c-green">▌</span>' : m.status === 'recent' ? '<span class="c-yellow">▌</span>' : '<span class="c-dim">│</span>'} ${m.name}</span>
+        ${badge}
+      </div>`;
+    }).join('');
+  }
+
+  // ===================== RENDER ASCII DIAGRAM =====================
+  function renderDiagram() {
+    const s = (id) => {
+      const m = modules.find(x => x.id === id);
+      if (m.status === 'active') return 'c-green ascii-pulse';
+      if (m.status === 'recent') return 'c-yellow ascii-glow';
+      return 'c-dim';
+    };
+    const b = (id) => {
+      const m = modules.find(x => x.id === id);
+      if (m.status === 'active') return 'c-green';
+      if (m.status === 'recent') return 'c-yellow';
+      return 'c-dim';
+    };
+    const n = (id) => {
+      const m = modules.find(x => x.id === id);
+      if (m.status === 'active') return 'c-green';
+      if (m.status === 'recent') return 'c-yellow-bright';
+      return 'c-bright';
+    };
+    const e = (id) => {
+      const m = modules.find(x => x.id === id);
+      if (m.status === 'active') return 'c-green';
+      if (m.status === 'recent') return 'c-yellow';
+      return 'c-dim';
+    };
+    const ln = (id) => {
+      const m = modules.find(x => x.id === id);
+      return m.lines;
+    };
+
+    document.getElementById('diagram-area').innerHTML = `
+<span class="c-dim">  ┌─ easy-review-agent-terminal-panel ─── 19,068 lines ─── 6 modules ─────────────────────────────┐</span>
+<span class="c-dim">  │                                                                                               │</span>
+<span class="c-dim">  │</span>                         <span class="${b('main')}">┌───────────────────────────┐</span>                                     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                         <span class="${b('main')}">│</span>  <span class="${n('main')}">main.rs</span>  <span class="c-dim">${ln('main')} lines</span>   <span class="${b('main')}">│</span>                                     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                         <span class="${b('main')}">│</span>  <span class="c-dim">event loop · CLI</span>        <span class="${b('main')}">│</span>                                     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                         <span class="${b('main')}">└─────┬──────┬──────┬──────┘</span>                                     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                      <span class="${e('main')}">┌────┘</span>      <span class="${e('main')}">│</span>      <span class="${e('main')}">└────┐</span>                                        <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                      <span class="${e('main')}">│</span>           <span class="${e('main')}">│</span>           <span class="${e('main')}">│</span>                                        <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                      <span class="${e('main')}">▼</span>           <span class="${e('main')}">▼</span>           <span class="${e('main')}">▼</span>                                        <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('git')}">┌────────────────────┐</span> <span class="${b('app')}">┌─────────────────────────┐</span> <span class="${b('ui')}">┌──────────────────────────┐</span>  <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('git')}">│</span>  <span class="${n('git')}">git/</span>  <span class="c-dim">${ln('git')} lines</span>  <span class="${b('git')}">│</span> <span class="${b('app')}">│</span>  <span class="${n('app')}">app/</span>  <span class="c-dim">${ln('app')} lines</span>       <span class="${b('app')}">│</span> <span class="${b('ui')}">│</span>  <span class="${n('ui')}">ui/</span>  <span class="c-dim">~${ln('ui')} lines</span>       <span class="${b('ui')}">│</span>  <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('git')}">│</span>  <span class="c-dim">diff.rs</span>           <span class="${b('git')}">│</span> <span class="${b('app')}">│</span>  <span class="c-dim">state.rs  filter.rs</span>    <span class="${b('app')}">│</span> <span class="${b('ui')}">│</span>  <span class="c-dim">diff_view · file_tree</span>   <span class="${b('ui')}">│</span>  <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('git')}">│</span>  <span class="c-dim">status.rs</span>         <span class="${b('git')}">│</span> <span class="${b('app')}">│</span>  <span class="c-dim">4 diff modes</span>           <span class="${b('app')}">│</span> <span class="${b('ui')}">│</span>  <span class="c-dim">panel · status_bar</span>      <span class="${b('ui')}">│</span>  <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('git')}">│</span>  <span class="c-dim">parse · stage</span>     <span class="${b('git')}">│</span> <span class="${b('app')}">│</span>  <span class="c-dim">6 input modes</span>          <span class="${b('app')}">│</span> <span class="${b('ui')}">│</span>  <span class="c-dim">styles · highlight</span>      <span class="${b('ui')}">│</span>  <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('git')}">└────────────────────┘</span> <span class="${b('app')}">│</span>  <span class="c-accent">★ LARGEST MODULE</span>       <span class="${b('app')}">│</span> <span class="${b('ui')}">│</span>  <span class="c-accent">viewport rendering</span>     <span class="${b('ui')}">│</span>  <span class="c-dim">│</span>
+<span class="c-dim">  │</span>          <span class="${e('git')}">▲</span>             <span class="${b('app')}">└───────────┬─────────────┘</span> <span class="${b('ui')}">└──────────┬───────────────┘</span>  <span class="c-dim">│</span>
+<span class="c-dim">  │</span>          <span class="${e('git')}">│</span>                         <span class="${e('app')}">│</span>                          <span class="${e('ui')}">│</span>               <span class="c-dim">│</span>
+<span class="c-dim">  │</span>          <span class="${e('git')}">│</span>             <span class="${e('app')}">┌───────────┘</span>              <span class="${e('ui')}">┌─────────┘</span>               <span class="c-dim">│</span>
+<span class="c-dim">  │</span>          <span class="${e('git')}">│</span>             <span class="${e('app')}">│</span>                            <span class="${e('ui')}">│</span>                         <span class="c-dim">│</span>
+<span class="c-dim">  │</span>          <span class="${e('git')}">│</span>             <span class="${e('app')}">▼</span>                            <span class="${e('ui')}">▼</span>                         <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('watch')}">┌──────────────┐</span>  <span class="${b('ai')}">┌─────────────────────────┐</span>  <span class="${b('github')}">┌──────────────────────┐</span>     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('watch')}">│</span>  <span class="${n('watch')}">watch/</span>      <span class="${b('watch')}">│</span>  <span class="${b('ai')}">│</span>  <span class="${n('ai')}">ai/</span>  <span class="c-dim">${ln('ai')} lines</span>        <span class="${b('ai')}">│</span>  <span class="${b('github')}">│</span>  <span class="${n('github')}">github.rs</span>  <span class="c-dim">${ln('github')}</span>  <span class="${b('github')}">│</span>     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('watch')}">│</span>  <span class="c-dim">${ln('watch')} lines</span>   <span class="${b('watch')}">│</span>  <span class="${b('ai')}">│</span>  <span class="c-dim">review.rs  loader.rs</span>   <span class="${b('ai')}">│</span>  <span class="${b('github')}">│</span>  <span class="c-dim">PR sync · gh CLI</span>    <span class="${b('github')}">│</span>     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('watch')}">│</span>  <span class="c-dim">notify</span>      <span class="${b('watch')}">│</span>  <span class="${b('ai')}">│</span>  <span class="c-dim">sidecar · staleness</span>    <span class="${b('ai')}">│</span>  <span class="${b('github')}">│</span>  <span class="c-dim">comment sync</span>        <span class="${b('github')}">│</span>     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('watch')}">│</span>  <span class="c-dim">debounce</span>    <span class="${b('watch')}">│</span>  <span class="${b('ai')}">└─────────────┬───────────┘</span>  <span class="${b('github')}">└──────────┬───────────┘</span>     <span class="c-dim">│</span>
+<span class="c-dim">  │</span>  <span class="${b('watch')}">└──────────────┘</span>                <span class="${e('ai')}">│</span>                          <span class="${e('github')}">│</span>               <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                                  <span class="${e('ai')}">▼</span>                          <span class="${e('github')}">▼</span>               <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                         <span class="c-dim">╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌</span>    <span class="c-dim">╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌</span>        <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                         <span class="c-dim">╎ .er-*.json sidecars ╎</span>    <span class="c-dim">╎  gh CLI (ext)    ╎</span>        <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                         <span class="c-dim">╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌</span>    <span class="c-dim">╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌</span>        <span class="c-dim">│</span>
+<span class="c-dim">  │</span>                                                                                  <span class="${b('config')}">┌─────────────────┐</span>
+<span class="c-dim">  │</span>    <span class="c-dim">LEGEND:</span>  <span class="c-green">█ active</span>  <span class="c-yellow">█ recent</span>  <span class="c-dim">█ unchanged</span>  <span class="c-dim">╌╌ external</span>               <span class="${b('config')}">│</span> <span class="${n('config')}">config.rs</span>  <span class="c-dim">${ln('config')}</span> <span class="${b('config')}">│</span>
+<span class="c-dim">  │</span>                                                                                  <span class="${b('config')}">│</span> <span class="c-dim">TOML · flags</span>    <span class="${b('config')}">│</span>
+<span class="c-dim">  │</span>    <span class="c-dim">── dependency edge     ══ data flow</span>                                        <span class="${b('config')}">└─────────────────┘</span>
+<span class="c-dim">  └───────────────────────────────────────────────────────────────────────────────────────────────┘</span>`;
+  }
+
+  // ===================== SELECT MODULE =====================
+  function selectModule(id) {
+    selectedModule = id;
+    const m = modules.find(x => x.id === id);
+    document.getElementById('detail-text').innerHTML =
+      `<span class="${m.status === 'active' ? 'c-green' : m.status === 'recent' ? 'c-yellow' : 'c-accent'}">${m.name}</span> <span class="c-dim">—</span> ${m.desc}`;
+    document.getElementById('detail-right').innerHTML =
+      `<span class="c-dim">${m.lines} lines</span> <span class="c-dim">│</span> <span class="c-dim">${m.files.length} files</span>`;
+    renderModuleList();
+  }
+
+  // ===================== SIMULATE CHANGE =====================
+  function simulateChange() {
+    const scenario = changeScenarios[scenarioIdx % changeScenarios.length];
+    scenarioIdx++;
+
+    // Update module status
+    const m = modules.find(x => x.id === scenario.moduleId);
+    m.status = 'active';
+
+    // Stats
+    stats.files++;
+    stats.modules.add(scenario.moduleId);
+    stats.added += scenario.added;
+    stats.removed += scenario.removed;
+
+    document.getElementById('sb-files').textContent = stats.files;
+    document.getElementById('sb-modules').textContent = stats.modules.size;
+    document.getElementById('sb-added').textContent = '+' + stats.added;
+    document.getElementById('sb-removed').textContent = '-' + stats.removed;
+
+    // Activity log
+    activityLog.unshift({ ...scenario, time: new Date() });
+    document.getElementById('activity-count').textContent = activityLog.length + ' changes';
+
+    // Auto-select the changed module
+    selectModule(scenario.moduleId);
+
+    // Re-render
+    renderDiagram();
+    renderModuleList();
+    renderActivityFeed();
+
+    // Fade to recent after 3s
+    setTimeout(() => {
+      if (m.status === 'active') {
+        m.status = 'recent';
+        renderDiagram();
+        renderModuleList();
+      }
+    }, 3000);
+
+    // Fade to normal after 12s
+    setTimeout(() => {
+      if (m.status === 'recent') {
+        m.status = 'normal';
+        renderDiagram();
+        renderModuleList();
+      }
+    }, 12000);
+  }
+
+  function renderActivityFeed() {
+    const el = document.getElementById('activity-feed');
+    if (activityLog.length === 0) return;
+    el.innerHTML = activityLog.slice(0, 15).map(entry => {
+      const age = Date.now() - entry.time.getTime();
+      const timeStr = age < 60000 ? `${Math.round(age/1000)}s ago` : `${Math.round(age/60000)}m ago`;
+      const m = modules.find(x => x.id === entry.moduleId);
+      const color = m.status === 'active' ? 'c-green' : m.status === 'recent' ? 'c-yellow' : 'c-dim';
+      return `<div class="activity-entry">
+        <div>
+          <span class="${color}">${entry.moduleId}/</span><span class="activity-file">${entry.file}</span>
+          <span class="activity-time" style="float:right">${timeStr}</span>
+        </div>
+        <div class="activity-desc">${entry.desc}</div>
+        <div class="activity-stats"><span class="c-green">+${entry.added}</span> <span class="c-red">-${entry.removed}</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  // ===================== AUTO DEMO =====================
+  function toggleAutoDemo() {
+    if (autoRunning) {
+      clearInterval(autoTimer);
+      autoRunning = false;
+      document.getElementById('auto-btn').textContent = '⟳ Auto Demo';
+      document.getElementById('auto-btn').classList.remove('red');
+      return;
+    }
+    autoRunning = true;
+    document.getElementById('auto-btn').textContent = '⏹ Stop';
+    document.getElementById('auto-btn').classList.add('red');
+    simulateChange();
+    autoTimer = setInterval(() => {
+      simulateChange();
+      if (Math.random() > 0.65) setTimeout(() => simulateChange(), 350);
+    }, 2200 + Math.random() * 1200);
+  }
+
+  // ===================== VIEW SWITCHING =====================
+  function switchView(view) {
+    document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+    if (view === 'arch') {
+      renderDiagram();
+    } else if (view === 'deps') {
+      renderDepsView();
+    } else if (view === 'stats') {
+      renderStatsView();
+    }
+  }
+
+  function renderDepsView() {
+    const area = document.getElementById('diagram-area');
+    const depMap = {
+      'main.rs': ['app/', 'ui/', 'git/', 'watch/', 'config.rs', 'ai/'],
+      'app/': ['git/', 'ai/', 'config.rs'],
+      'ui/': ['app/', 'ai/'],
+      'github.rs': ['git/'],
+      'git/': [],
+      'ai/': [],
+      'watch/': [],
+      'config.rs': [],
+    };
+    let lines = [];
+    lines.push(`<span class="c-accent">  Dependency Matrix</span>`);
+    lines.push(``);
+    lines.push(`<span class="c-dim">  MODULE         │ DEPENDS ON                           │ DEPENDED ON BY</span>`);
+    lines.push(`<span class="c-dim">  ───────────────┼──────────────────────────────────────┼─────────────────────────</span>`);
+    Object.entries(depMap).forEach(([mod, deps]) => {
+      const dependedBy = Object.entries(depMap).filter(([k,v]) => v.includes(mod)).map(([k]) => k);
+      const m = modules.find(x => x.name === mod);
+      const color = m && m.status === 'active' ? 'c-green' : m && m.status === 'recent' ? 'c-yellow' : 'c-bright';
+      lines.push(`  <span class="${color}">${mod.padEnd(15)}</span><span class="c-dim">│</span> ${(deps.join(', ') || '—').padEnd(37)}<span class="c-dim">│</span> ${dependedBy.join(', ') || '—'}`);
+    });
+    lines.push(``);
+    lines.push(`<span class="c-dim">  Highest fan-out: </span><span class="c-accent">main.rs</span><span class="c-dim"> (6 deps)</span>`);
+    lines.push(`<span class="c-dim">  Highest fan-in:  </span><span class="c-accent">git/</span><span class="c-dim"> (3 dependents)</span>`);
+    lines.push(`<span class="c-dim">  Leaf modules:    </span><span class="c-dim">git/, ai/, watch/, config.rs (no outgoing deps)</span>`);
+    area.innerHTML = lines.join('\n');
+  }
+
+  function renderStatsView() {
+    const area = document.getElementById('diagram-area');
+    const bar = (val, max, color) => {
+      const width = Math.round((val / max) * 40);
+      return `<span class="${color}">${'█'.repeat(width)}</span><span class="c-dim">${'░'.repeat(40 - width)}</span>`;
+    };
+    let lines = [];
+    lines.push(`<span class="c-accent">  Module Size Distribution</span>`);
+    lines.push(``);
+    const sorted = [...modules].sort((a,b) => b.lines - a.lines);
+    const maxLines = sorted[0].lines;
+    sorted.forEach(m => {
+      const color = m.status === 'active' ? 'c-green' : m.status === 'recent' ? 'c-yellow' : 'c-accent';
+      lines.push(`  <span class="c-bright">${m.name.padEnd(14)}</span> ${bar(m.lines, maxLines, color)} <span class="c-dim">${m.lines}</span>`);
+    });
+    lines.push(``);
+    lines.push(`<span class="c-dim">  Total: </span><span class="c-bright">19,068 lines</span><span class="c-dim"> across </span><span class="c-bright">8 modules</span>`);
+    lines.push(`<span class="c-dim">  Average: </span><span class="c-bright">2,384 lines/module</span>`);
+    lines.push(`<span class="c-dim">  Median:  </span><span class="c-bright">1,826 lines</span>`);
+    lines.push(``);
+    if (activityLog.length > 0) {
+      lines.push(`<span class="c-accent">  Session Change Activity</span>`);
+      lines.push(``);
+      const modCounts = {};
+      activityLog.forEach(a => { modCounts[a.moduleId] = (modCounts[a.moduleId] || 0) + 1; });
+      Object.entries(modCounts).sort((a,b) => b[1] - a[1]).forEach(([mod, count]) => {
+        const m = modules.find(x => x.id === mod);
+        lines.push(`  <span class="c-bright">${m.name.padEnd(14)}</span> ${bar(count, Math.max(...Object.values(modCounts)), 'c-orange')} <span class="c-dim">${count} changes</span>`);
+      });
+    }
+    area.innerHTML = lines.join('\n');
+  }
+
+  // ===================== INIT =====================
+  renderModuleList();
+  renderDiagram();
+
+  // Refresh timestamps
+  setInterval(() => {
+    if (activityLog.length > 0) renderActivityFeed();
+  }, 5000);
+</script>
+
+</body>
+</html>

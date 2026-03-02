@@ -1,0 +1,21 @@
+# Build artifacts
+/target/
+/dist/
+/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ArchWatch session files
+.aw-session.json
+
+# Environment
+.env
+.env.local

@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArchWatch — Live Architecture Diagram Tool — Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'mono': ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+            'body': ['"Inter"', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            'bg': '#0a0e14',
+            'surface': '#0f1419',
+            'surface2': '#151b23',
+            'border': '#1e2733',
+            'border-bright': '#2d3a4a',
+            'text': '#c5cdd8',
+            'text-dim': '#6b7d93',
+            'text-bright': '#e6edf5',
+            'accent': '#39bae6',
+            'accent-dim': '#1a3a52',
+            'green': '#7fd962',
+            'green-dim': '#1a3322',
+            'red': '#f07178',
+            'red-dim': '#3d1a1c',
+            'yellow': '#ffb454',
+            'yellow-dim': '#3d2e14',
+            'purple': '#c79bf0',
+            'purple-dim': '#2a1a3d',
+            'orange': '#ff8f40',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #0a0e14; color: #c5cdd8; font-family: 'Inter', system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f1419; }
+    ::-webkit-scrollbar-thumb { background: #2d3a4a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3d4a5a; }
+
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(127, 217, 98, 0.5); }
+      70% { box-shadow: 0 0 0 8px rgba(127, 217, 98, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(127, 217, 98, 0); }
+    }
+    .pulse-active { animation: pulse-ring 2s ease-out infinite; }
+
+    @keyframes pulse-yellow {
+      0% { box-shadow: 0 0 0 0 rgba(255, 180, 84, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(255, 180, 84, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 180, 84, 0); }
+    }
+    .pulse-yellow { animation: pulse-yellow 2.5s ease-out infinite; }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeSlideIn 0.3s ease-out forwards; }
+
+    .tab-btn { transition: all 0.2s ease; }
+    .tab-btn.active { color: #39bae6; border-bottom: 2px solid #39bae6; }
+    .tab-btn:not(.active) { color: #6b7d93; border-bottom: 2px solid transparent; }
+    .tab-btn:not(.active):hover { color: #c5cdd8; }
+
+    .arch-node { transition: all 0.15s ease; cursor: pointer; }
+    .arch-node:hover { transform: scale(1.03); }
+
+    .feed-item { border-left: 2px solid #1e2733; padding-left: 12px; }
+    .feed-item.active { border-left-color: #7fd962; }
+    .feed-item.recent { border-left-color: #ffb454; }
+
+    .page-section { display: none; }
+    .page-section.visible { display: block; }
+
+    .winner-badge { background: rgba(127, 217, 98, 0.15); color: #7fd962; border: 1px solid rgba(127, 217, 98, 0.3); }
+  </style>
+</head>
+<body class="antialiased min-h-screen">
+
+  <!-- Top nav -->
+  <header class="fixed top-0 left-0 right-0 z-50 bg-bg/95 backdrop-blur-sm border-b border-border">
+    <div class="max-w-[1400px] mx-auto px-6 h-12 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="font-mono font-bold text-accent text-sm tracking-wider">ARCHWATCH</span>
+        <span class="text-text-dim text-xs font-mono">v0.1 concept</span>
+      </div>
+      <nav class="flex gap-1">
+        <button class="tab-btn active px-3 py-3 text-xs font-medium font-mono" data-tab="comparison" onclick="switchTab('comparison')">FORM FACTORS</button>
+        <button class="tab-btn px-3 py-3 text-xs font-medium font-mono" data-tab="demo" onclick="switchTab('demo')">LIVE DEMO</button>
+        <button class="tab-btn px-3 py-3 text-xs font-medium font-mono" data-tab="architecture" onclick="switchTab('architecture')">IMPL PLAN</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="pt-12">
+
+    <!-- ==================== TAB 1: FORM FACTOR COMPARISON ==================== -->
+    <section id="tab-comparison" class="page-section visible">
+      <div class="max-w-[1200px] mx-auto px-6 py-10">
+        <div class="mb-10">
+          <h1 class="font-mono text-2xl font-bold text-text-bright mb-2">Form Factor Decision</h1>
+          <p class="text-text-dim text-sm max-w-2xl">Architecture diagrams need visual space for layout, zoom, hover tooltips, and animation. The form factor determines what's possible.</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 mb-12">
+
+          <!-- Web App -->
+          <div class="bg-surface border border-border rounded-lg overflow-hidden">
+            <div class="bg-surface2 px-6 py-4 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <span class="text-lg">🌐</span>
+                <h3 class="font-mono font-bold text-text-bright">Web App (Local Server + Browser)</h3>
+              </div>
+              <span class="winner-badge text-xs font-mono px-3 py-1 rounded-full font-semibold">★ RECOMMENDED</span>
+            </div>
+            <div class="px-6 py-5 grid grid-cols-2 gap-8">
+              <div>
+                <h4 class="font-mono text-green text-xs font-semibold mb-3 tracking-wider">PROS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Full SVG/Canvas rendering — real graph layouts, zoom, pan, animations</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Zoomable detail levels (module → file → function) work naturally</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>WebSocket for live push updates — sub-100ms change reflection</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Hover tooltips, click-to-navigate, minimap, search all come free</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>CSS animations for change highlighting (pulses, glows, trails)</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Can screenshot/export diagrams easily</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Works alongside terminal — <code class="font-mono text-accent text-xs">er</code> in one pane, diagram in browser</li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-mono text-red text-xs font-semibold mb-3 tracking-wider">CONS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Requires a local server process (Rust binary serves HTTP + WebSocket)</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Browser tab management — yet another window to arrange</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Slightly more complex deployment (though still single binary)</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Frontend code adds JS/HTML to maintain alongside Rust</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- TUI -->
+          <div class="bg-surface border border-border rounded-lg overflow-hidden">
+            <div class="bg-surface2 px-6 py-4 flex items-center gap-3">
+              <span class="text-lg">⬛</span>
+              <h3 class="font-mono font-bold text-text-bright">TUI (Terminal App)</h3>
+            </div>
+            <div class="px-6 py-5 grid grid-cols-2 gap-8">
+              <div>
+                <h4 class="font-mono text-green text-xs font-semibold mb-3 tracking-wider">PROS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Consistent with ER aesthetic — same dark terminal vibe</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Zero dependencies, single binary, no browser needed</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Can reuse ratatui + crossterm + notify from ER if embedded</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Keyboard-driven navigation matches developer workflow</li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-mono text-red text-xs font-semibold mb-3 tracking-wider">CONS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span><strong class="text-yellow">Architecture diagrams in ASCII are fundamentally limited</strong> — can't show complex graph layouts, overlapping edges, or smooth zoom</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Zoomable module→function drill-down is very hard in box-drawing</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>No hover tooltips, no minimap, limited color palette</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Change animations limited to color flashes (no smooth transitions)</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Terminal width constrains layout — 80-col repos would be cramped</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>If embedded in ER, adds significant complexity to an already 19K-line codebase</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hybrid -->
+          <div class="bg-surface border border-border rounded-lg overflow-hidden">
+            <div class="bg-surface2 px-6 py-4 flex items-center gap-3">
+              <span class="text-lg">🔀</span>
+              <h3 class="font-mono font-bold text-text-bright">Hybrid (TUI + Browser)</h3>
+            </div>
+            <div class="px-6 py-5 grid grid-cols-2 gap-8">
+              <div>
+                <h4 class="font-mono text-green text-xs font-semibold mb-3 tracking-wider">PROS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>TUI for quick glance + keyboard nav, browser for full exploration</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Degrades gracefully (SSH = TUI only, local = full browser)</li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-mono text-red text-xs font-semibold mb-3 tracking-wider">CONS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span><strong class="text-yellow">Two UIs to build and maintain</strong> — doubles the work</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>TUI version will always feel like a lesser experience</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Adds complexity without proportional value</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Users will just use the browser version and ignore TUI</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Embed in ER -->
+          <div class="bg-surface border border-border rounded-lg overflow-hidden">
+            <div class="bg-surface2 px-6 py-4 flex items-center gap-3">
+              <span class="text-lg">📦</span>
+              <h3 class="font-mono font-bold text-text-bright">Embedded in Easy Review</h3>
+            </div>
+            <div class="px-6 py-5 grid grid-cols-2 gap-8">
+              <div>
+                <h4 class="font-mono text-green text-xs font-semibold mb-3 tracking-wider">PROS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Reuses file watcher, diff parsing, git integration</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Diagram context right next to the diff you're reviewing</li>
+                  <li class="flex gap-2"><span class="text-green shrink-0">+</span>Single tool to learn and run</li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-mono text-red text-xs font-semibold mb-3 tracking-wider">CONS</h4>
+                <ul class="space-y-2 text-sm text-text">
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span><strong class="text-yellow">ER is already 19K lines with complex state</strong> — adding graph layout would bloat it</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Same TUI rendering limitations (ASCII diagrams)</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Different use case: ER is for reviewing diffs, this is for understanding architecture</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Screen real estate conflict — diff view needs full width</li>
+                  <li class="flex gap-2"><span class="text-red shrink-0">−</span>Code analysis (imports, call graph) is unrelated to diff parsing</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verdict -->
+        <div class="bg-surface2 border border-accent-dim rounded-lg p-6 mb-8">
+          <h3 class="font-mono text-accent font-bold text-sm mb-3">THE VERDICT: STANDALONE WEB APP</h3>
+          <div class="space-y-3 text-sm text-text">
+            <p><strong class="text-text-bright">Architecture diagrams are fundamentally visual.</strong> They need graph layout algorithms (force-directed, hierarchical), zoom/pan, hover tooltips, animated transitions, and space to breathe. Terminal box-drawing can't deliver this — it would feel like viewing Google Maps in ASCII.</p>
+            <p><strong class="text-text-bright">Keep it separate from ER.</strong> ER reviews diffs. This tool visualizes architecture. Different jobs, different interfaces. They complement each other: run <code class="font-mono text-accent bg-accent-dim px-1.5 py-0.5 rounded text-xs">er</code> in your terminal to review changes, open <code class="font-mono text-accent bg-accent-dim px-1.5 py-0.5 rounded text-xs">aw</code> in your browser to see where those changes fit in the system. They can share the same file watcher infrastructure via a shared Rust library crate.</p>
+            <p><strong class="text-text-bright">Single binary, still.</strong> <code class="font-mono text-accent bg-accent-dim px-1.5 py-0.5 rounded text-xs">aw</code> compiles to one binary. Run it, it starts a local server, opens your browser. Frontend is embedded in the binary (rust-embed). No npm, no build step for end users.</p>
+          </div>
+        </div>
+
+        <div class="text-center">
+          <button onclick="switchTab('demo')" class="bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent font-mono text-sm px-6 py-2.5 rounded transition-all">See the live demo →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: LIVE DEMO ==================== -->
+    <section id="tab-demo" class="page-section">
+      <div class="h-[calc(100vh-48px)] flex">
+
+        <!-- Left sidebar: Activity Feed -->
+        <div class="w-72 shrink-0 border-r border-border bg-surface overflow-y-auto">
+          <div class="p-4 border-b border-border">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-mono text-xs font-semibold text-text-dim tracking-wider">ACTIVITY</h2>
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-green animate-pulse"></span>
+                <span class="font-mono text-xs text-green">watching</span>
+              </div>
+            </div>
+            <div class="font-mono text-xs text-text-dim">easy-review-agent-terminal-panel</div>
+          </div>
+          <div class="p-3 space-y-1" id="activity-feed"></div>
+          <div class="p-4 border-t border-border mt-auto">
+            <h3 class="font-mono text-xs font-semibold text-text-dim tracking-wider mb-3">SESSION STATS</h3>
+            <div class="grid grid-cols-2 gap-3 text-xs font-mono">
+              <div><div class="text-text-dim">Files changed</div><div class="text-green text-lg font-bold" id="stat-files">0</div></div>
+              <div><div class="text-text-dim">Modules hit</div><div class="text-yellow text-lg font-bold" id="stat-modules">0</div></div>
+              <div><div class="text-text-dim">Lines added</div><div class="text-green text-lg font-bold" id="stat-added">0</div></div>
+              <div><div class="text-text-dim">Lines removed</div><div class="text-red text-lg font-bold" id="stat-removed">0</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main: Architecture Diagram -->
+        <div class="flex-1 relative overflow-hidden bg-bg">
+          <!-- Toolbar -->
+          <div class="absolute top-3 left-3 right-3 z-10 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <button onclick="setZoomLevel('module')" class="zoom-btn active font-mono text-xs px-3 py-1.5 rounded border transition-all" data-zoom="module">Modules</button>
+              <button onclick="setZoomLevel('file')" class="zoom-btn font-mono text-xs px-3 py-1.5 rounded border transition-all" data-zoom="file">Files</button>
+              <button onclick="setZoomLevel('symbol')" class="zoom-btn font-mono text-xs px-3 py-1.5 rounded border transition-all" data-zoom="symbol">Symbols</button>
+              <span class="text-text-dim text-xs font-mono mx-2">│</span>
+              <button onclick="toggleHeatmap()" id="heatmap-btn" class="font-mono text-xs px-3 py-1.5 rounded border border-border text-text-dim hover:text-text hover:border-border-bright transition-all">🔥 Heatmap</button>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs text-text-dim" id="zoom-label">100%</span>
+              <div class="flex items-center border border-border rounded overflow-hidden">
+                <button onclick="zoomDiagram(-1)" class="px-2 py-1 text-text-dim hover:text-text hover:bg-surface transition-all font-mono text-xs">−</button>
+                <button onclick="zoomDiagram(0)" class="px-2 py-1 text-text-dim hover:text-text hover:bg-surface transition-all font-mono text-xs border-x border-border">⊙</button>
+                <button onclick="zoomDiagram(1)" class="px-2 py-1 text-text-dim hover:text-text hover:bg-surface transition-all font-mono text-xs">+</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SVG Diagram -->
+          <div id="diagram-container" class="w-full h-full" style="transform-origin: center center;">
+            <svg id="arch-diagram" viewBox="0 0 1100 700" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#111820" stroke-width="0.5"/>
+                </pattern>
+                <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                  <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <filter id="glow-yellow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              <rect width="1100" height="700" fill="url(#grid)"/>
+
+              <!-- Edges -->
+              <g id="edges">
+                <path d="M 200 110 Q 200 170 320 200" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-main-app"/>
+                <path d="M 200 110 Q 350 150 500 175" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-main-ui"/>
+                <path d="M 200 110 Q 100 170 120 220" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-main-git"/>
+                <path d="M 200 110 Q 50 130 80 370" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-main-watch"/>
+                <path d="M 380 260 Q 400 330 380 390" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-app-ai"/>
+                <path d="M 300 240 Q 200 260 160 260" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-app-git"/>
+                <path d="M 500 215 Q 430 220 400 220" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-ui-app"/>
+                <path d="M 530 255 Q 480 350 420 400" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-ui-ai"/>
+                <path d="M 100 300 Q 80 340 80 370" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" stroke-dasharray="4,4" id="edge-git-ext"/>
+                <path d="M 750 260 Q 400 340 160 280" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-github-git"/>
+                <path d="M 880 200 Q 600 200 400 210" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-config-app"/>
+                <path d="M 380 460 Q 380 500 380 520" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" stroke-dasharray="4,4" id="edge-ai-files"/>
+                <path d="M 100 390 Q 70 250 180 120" class="edge-normal" fill="none" stroke="#2d3a4a" stroke-width="1.5" id="edge-watch-main"/>
+              </g>
+
+              <!-- Nodes -->
+              <g id="nodes">
+                <!-- main.rs -->
+                <g class="arch-node" id="node-main" data-module="main" onclick="selectNode('main')">
+                  <rect x="130" y="60" width="140" height="50" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="200" y="82" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">main.rs</text>
+                  <text x="200" y="98" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">event loop · CLI</text>
+                </g>
+
+                <!-- git/ -->
+                <g class="arch-node" id="node-git" data-module="git" onclick="selectNode('git')">
+                  <rect x="60" y="200" width="160" height="100" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="140" y="225" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">git/</text>
+                  <text x="140" y="243" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">diff.rs — parser</text>
+                  <text x="140" y="257" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">status.rs — commands</text>
+                  <line x1="80" y1="270" x2="200" y2="270" stroke="#1e2733" stroke-width="0.5"/>
+                  <text x="140" y="288" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">2,121 lines</text>
+                </g>
+
+                <!-- app/ -->
+                <g class="arch-node" id="node-app" data-module="app" onclick="selectNode('app')">
+                  <rect x="280" y="180" width="160" height="110" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="360" y="205" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">app/</text>
+                  <text x="360" y="223" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">state.rs — App struct</text>
+                  <text x="360" y="237" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">filter.rs — composable</text>
+                  <line x1="300" y1="250" x2="420" y2="250" stroke="#1e2733" stroke-width="0.5"/>
+                  <text x="360" y="268" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">5,955 lines</text>
+                  <text x="360" y="282" text-anchor="middle" fill="#39bae6" font-family="JetBrains Mono" font-size="8">LARGEST MODULE</text>
+                </g>
+
+                <!-- ui/ -->
+                <g class="arch-node" id="node-ui" data-module="ui" onclick="selectNode('ui')">
+                  <rect x="470" y="170" width="170" height="120" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="555" y="195" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">ui/</text>
+                  <text x="555" y="213" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">diff_view · file_tree</text>
+                  <text x="555" y="227" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">panel · status_bar</text>
+                  <text x="555" y="241" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">styles · highlight</text>
+                  <line x1="490" y1="255" x2="620" y2="255" stroke="#1e2733" stroke-width="0.5"/>
+                  <text x="555" y="273" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">~6,200 lines</text>
+                  <text x="555" y="285" text-anchor="middle" fill="#39bae6" font-family="JetBrains Mono" font-size="8">viewport rendering</text>
+                </g>
+
+                <!-- ai/ -->
+                <g class="arch-node" id="node-ai" data-module="ai" onclick="selectNode('ai')">
+                  <rect x="290" y="370" width="160" height="100" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="370" y="395" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">ai/</text>
+                  <text x="370" y="413" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">review.rs — data model</text>
+                  <text x="370" y="427" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">loader.rs — sidecar</text>
+                  <line x1="310" y1="440" x2="430" y2="440" stroke="#1e2733" stroke-width="0.5"/>
+                  <text x="370" y="458" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">2,954 lines</text>
+                </g>
+
+                <!-- watch/ -->
+                <g class="arch-node" id="node-watch" data-module="watch" onclick="selectNode('watch')">
+                  <rect x="40" y="360" width="120" height="60" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="100" y="385" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">watch/</text>
+                  <text x="100" y="403" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">notify · debounce</text>
+                </g>
+
+                <!-- github.rs -->
+                <g class="arch-node" id="node-github" data-module="github" onclick="selectNode('github')">
+                  <rect x="680" y="220" width="150" height="70" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="755" y="248" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">github.rs</text>
+                  <text x="755" y="266" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">PR sync · gh CLI</text>
+                  <text x="755" y="280" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">898 lines</text>
+                </g>
+
+                <!-- config.rs -->
+                <g class="arch-node" id="node-config" data-module="config" onclick="selectNode('config')">
+                  <rect x="820" y="150" width="140" height="60" rx="4" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                  <text x="890" y="175" text-anchor="middle" fill="#e6edf5" font-family="JetBrains Mono" font-size="12" font-weight="600">config.rs</text>
+                  <text x="890" y="193" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">TOML · feature flags</text>
+                </g>
+
+                <!-- Externals (dimmed, dashed) -->
+                <g style="opacity: 0.5;">
+                  <rect x="40" y="440" width="120" height="40" rx="4" fill="none" stroke="#2d3a4a" stroke-width="1" stroke-dasharray="4,4"/>
+                  <text x="100" y="465" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="10">git (binary)</text>
+                </g>
+                <g style="opacity: 0.5;">
+                  <rect x="290" y="510" width="160" height="40" rx="4" fill="none" stroke="#2d3a4a" stroke-width="1" stroke-dasharray="4,4"/>
+                  <text x="370" y="535" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="10">.er-*.json sidecars</text>
+                </g>
+                <g style="opacity: 0.5;">
+                  <rect x="700" y="320" width="120" height="40" rx="4" fill="none" stroke="#2d3a4a" stroke-width="1" stroke-dasharray="4,4"/>
+                  <text x="760" y="345" text-anchor="middle" fill="#6b7d93" font-family="JetBrains Mono" font-size="10">gh CLI</text>
+                </g>
+              </g>
+
+              <!-- Legend -->
+              <g transform="translate(800, 430)">
+                <text x="0" y="0" fill="#6b7d93" font-family="JetBrains Mono" font-size="10" font-weight="600">LEGEND</text>
+                <rect x="0" y="12" width="12" height="12" rx="2" fill="#151b23" stroke="#7fd962" stroke-width="2"/>
+                <text x="20" y="22" fill="#7fd962" font-family="JetBrains Mono" font-size="9">Active change</text>
+                <rect x="0" y="32" width="12" height="12" rx="2" fill="#151b23" stroke="#ffb454" stroke-width="2"/>
+                <text x="20" y="42" fill="#ffb454" font-family="JetBrains Mono" font-size="9">Recently changed</text>
+                <rect x="0" y="52" width="12" height="12" rx="2" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+                <text x="20" y="62" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">Unchanged</text>
+                <rect x="0" y="72" width="12" height="12" rx="2" fill="none" stroke="#2d3a4a" stroke-width="1" stroke-dasharray="3,3"/>
+                <text x="20" y="82" fill="#6b7d93" font-family="JetBrains Mono" font-size="9">External</text>
+              </g>
+
+              <text x="20" y="680" fill="#2d3a4a" font-family="JetBrains Mono" font-size="10">easy-review v1.3 · 19,068 lines · 6 modules</text>
+            </svg>
+          </div>
+
+          <!-- Bottom bar -->
+          <div class="absolute bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-sm border-t border-border px-4 py-2 flex items-center justify-between">
+            <div class="flex items-center gap-4 font-mono text-xs">
+              <span class="text-text-dim">Last change: <span class="text-green" id="last-change-time">—</span></span>
+              <span class="text-text-dim">│</span>
+              <span class="text-text-dim" id="selected-info">Click a module for details</span>
+            </div>
+            <div class="flex items-center gap-3 font-mono text-xs">
+              <button onclick="simulateChange()" class="bg-green/10 hover:bg-green/20 text-green border border-green/30 px-3 py-1 rounded transition-all">▶ Simulate Change</button>
+              <button onclick="simulateSession()" id="session-btn" class="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 px-3 py-1 rounded transition-all">⟳ Auto Demo</button>
+            </div>
+          </div>
+
+          <!-- Detail popup -->
+          <div id="node-detail" class="absolute hidden bg-surface border border-border-bright rounded-lg shadow-2xl p-4 w-72 z-20" style="top: 50%; right: 16px; transform: translateY(-50%);">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="font-mono font-bold text-text-bright text-sm" id="detail-title">Module</h3>
+              <button onclick="document.getElementById('node-detail').classList.add('hidden')" class="text-text-dim hover:text-text text-xs">✕</button>
+            </div>
+            <div id="detail-content" class="space-y-2 text-xs font-mono text-text-dim"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: IMPLEMENTATION PLAN ==================== -->
+    <section id="tab-architecture" class="page-section">
+      <div class="max-w-[1000px] mx-auto px-6 py-10">
+        <h1 class="font-mono text-2xl font-bold text-text-bright mb-2">Implementation Plan</h1>
+        <p class="text-text-dim text-sm mb-10">Binary name: <code class="font-mono text-accent bg-accent-dim px-1.5 py-0.5 rounded">aw</code> (archwatch). Rust backend, embedded HTML/JS/SVG frontend. Single binary.</p>
+
+        <!-- Architecture -->
+        <div class="bg-surface border border-border rounded-lg p-6 mb-8">
+          <h3 class="font-mono text-xs font-semibold text-text-dim tracking-wider mb-4">AW INTERNAL ARCHITECTURE</h3>
+          <pre class="font-mono text-xs leading-relaxed text-text">
+<span class="text-accent">aw (binary)</span>
+├── <span class="text-green">analyzer/</span>           Code analysis engine
+│   ├── tree-sitter       Parse imports, functions, structs, traits
+│   ├── module_graph      Build module → file → symbol dependency graph
+│   ├── change_detector   Map git diffs to graph nodes
+│   └── <span class="text-yellow">cache</span>             Incremental analysis (don't re-parse unchanged files)
+│
+├── <span class="text-green">layout/</span>              Graph layout algorithms
+│   ├── force_directed    Physics sim for organic layouts (d3-force in Rust)
+│   ├── hierarchical      Top-down layer assignment (Sugiyama-style)
+│   ├── <span class="text-yellow">zoom_levels</span>       Module → File → Symbol detail switching
+│   └── animation         Smooth transitions between states
+│
+├── <span class="text-green">watcher/</span>             File system monitoring
+│   ├── notify + debounce Shared with ER (extract to crate)
+│   ├── git_events        Detect commits, staging, branch switches
+│   └── diff_mapper       Map changed files → affected graph nodes
+│
+├── <span class="text-green">server/</span>              HTTP + WebSocket server
+│   ├── axum              Lightweight async HTTP
+│   ├── websocket         Push updates to browser in real-time
+│   ├── <span class="text-yellow">rust-embed</span>        HTML/JS/CSS baked into binary
+│   └── api               REST endpoints for diagram data
+│
+└── <span class="text-green">frontend/</span>            Embedded web UI (served from binary)
+    ├── d3.js             SVG rendering + force layout
+    ├── websocket client  Receive live updates
+    ├── zoom/pan          Smooth navigation between detail levels
+    └── <span class="text-yellow">change_highlight</span>  Pulse, glow, trail animations</pre>
+        </div>
+
+        <!-- Phases -->
+        <div class="space-y-6 mb-10">
+          <h3 class="font-mono text-xs font-semibold text-text-dim tracking-wider">BUILD PHASES</h3>
+
+          <div class="bg-surface border border-green/30 rounded-lg p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="bg-green/20 text-green font-mono text-xs font-bold px-2.5 py-1 rounded">PHASE 1</span>
+              <h4 class="font-mono text-text-bright font-semibold text-sm">Static Diagram Generation — 1-2 weeks</h4>
+            </div>
+            <div class="space-y-2 text-sm text-text pl-4 border-l-2 border-green/20">
+              <p><strong class="text-text-bright">Goal:</strong> <code class="font-mono text-accent text-xs bg-accent-dim px-1 rounded">aw</code> scans a repo and opens a browser with an interactive architecture diagram.</p>
+              <p><strong class="text-text-bright">Parser:</strong> Use tree-sitter (Rust bindings) to extract imports, module structure, and public symbols. Start with Rust since ER is the test case.</p>
+              <p><strong class="text-text-bright">Layout:</strong> D3 force-directed graph in the browser. Nodes = modules/files, edges = import dependencies. Cluster by directory.</p>
+              <p><strong class="text-text-bright">Server:</strong> Axum serves the embedded frontend + a <code class="font-mono text-xs text-accent">/api/graph</code> endpoint returning JSON.</p>
+              <p><strong class="text-text-bright">Output:</strong> <code class="font-mono text-xs text-accent">aw</code> → opens <code class="font-mono text-xs text-accent">localhost:3838</code> → interactive SVG diagram of the repo.</p>
+            </div>
+          </div>
+
+          <div class="bg-surface border border-yellow/30 rounded-lg p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="bg-yellow/20 text-yellow font-mono text-xs font-bold px-2.5 py-1 rounded">PHASE 2</span>
+              <h4 class="font-mono text-text-bright font-semibold text-sm">Live Watching + Change Highlighting — 1-2 weeks</h4>
+            </div>
+            <div class="space-y-2 text-sm text-text pl-4 border-l-2 border-yellow/20">
+              <p><strong class="text-text-bright">File watcher:</strong> Extract ER's <code class="font-mono text-xs text-accent">notify</code> watcher into a shared crate. Watch for file saves.</p>
+              <p><strong class="text-text-bright">WebSocket:</strong> On file change → re-run tree-sitter on changed files only (incremental) → compute affected nodes → push delta to browser.</p>
+              <p><strong class="text-text-bright">Animations:</strong> Changed nodes pulse green. Recently changed nodes glow yellow. Edges to changed nodes highlight. Change fades over 30 seconds.</p>
+              <p><strong class="text-text-bright">Activity feed:</strong> Left sidebar shows chronological change log with timestamps.</p>
+            </div>
+          </div>
+
+          <div class="bg-surface border border-purple/30 rounded-lg p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="bg-purple/20 text-purple font-mono text-xs font-bold px-2.5 py-1 rounded">PHASE 3</span>
+              <h4 class="font-mono text-text-bright font-semibold text-sm">Zoomable Detail Levels — 1-2 weeks</h4>
+            </div>
+            <div class="space-y-2 text-sm text-text pl-4 border-l-2 border-purple/20">
+              <p><strong class="text-text-bright">Module level:</strong> Directories as clustered groups. Click to expand.</p>
+              <p><strong class="text-text-bright">File level:</strong> Individual files visible with line counts and key exports.</p>
+              <p><strong class="text-text-bright">Symbol level:</strong> Functions, structs, traits, enums inside a file. Call graph edges.</p>
+              <p><strong class="text-text-bright">Semantic zoom:</strong> Pinch/scroll zoom smoothly transitions between levels via D3 zoom thresholds.</p>
+            </div>
+          </div>
+
+          <div class="bg-surface border border-accent/30 rounded-lg p-5">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="bg-accent/20 text-accent font-mono text-xs font-bold px-2.5 py-1 rounded">PHASE 4</span>
+              <h4 class="font-mono text-text-bright font-semibold text-sm">Polish + ER Integration — 1 week</h4>
+            </div>
+            <div class="space-y-2 text-sm text-text pl-4 border-l-2 border-accent/20">
+              <p><strong class="text-text-bright">ER link:</strong> <code class="font-mono text-xs text-accent">er</code> gets a hotkey (<code class="font-mono text-xs text-accent">a</code>) to open <code class="font-mono text-xs text-accent">aw</code> for the current repo. Shares base branch detection.</p>
+              <p><strong class="text-text-bright">Heatmap mode:</strong> Color nodes by change frequency over time (git log analysis).</p>
+              <p><strong class="text-text-bright">Export:</strong> SVG/PNG export of current diagram state. Useful for docs and PRs.</p>
+              <p><strong class="text-text-bright">Multi-language:</strong> Extend tree-sitter grammars for TypeScript, Python, Go.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Key decisions -->
+        <div class="bg-surface border border-border rounded-lg p-6 mb-8">
+          <h3 class="font-mono text-xs font-semibold text-text-dim tracking-wider mb-4">KEY TECHNICAL DECISIONS</h3>
+          <div class="space-y-4 text-sm">
+            <div>
+              <span class="font-mono text-accent text-xs">tree-sitter vs regex for code analysis?</span>
+              <p class="text-text mt-1">Tree-sitter. It gives us a real AST — we can find imports, function signatures, struct definitions, trait impls. Regex would break on edge cases and can't give us the symbol-level zoom. tree-sitter has Rust bindings and grammars for every language we care about.</p>
+            </div>
+            <div>
+              <span class="font-mono text-accent text-xs">D3 in the browser vs Rust-side layout?</span>
+              <p class="text-text mt-1">D3 in browser. Force-directed layout needs fast iteration and smooth animation — JavaScript excels here. Rust backend provides the graph data, browser handles layout + rendering.</p>
+            </div>
+            <div>
+              <span class="font-mono text-accent text-xs">axum vs warp vs actix for the server?</span>
+              <p class="text-text mt-1">Axum. Lightweight, tokio-native, good WebSocket support. We only need 3 endpoints: serve embedded frontend, REST for graph data, WebSocket for live updates.</p>
+            </div>
+            <div>
+              <span class="font-mono text-accent text-xs">Shared crate with ER?</span>
+              <p class="text-text mt-1">Extract a <code class="font-mono text-accent bg-accent-dim px-1 rounded text-xs">er-common</code> crate with file watching, git helpers, and base branch detection. Both <code class="font-mono text-accent bg-accent-dim px-1 rounded text-xs">er</code> and <code class="font-mono text-accent bg-accent-dim px-1 rounded text-xs">aw</code> depend on it. Start with copy-paste in Phase 1, extract in Phase 4.</p>
+            </div>
+            <div>
+              <span class="font-mono text-accent text-xs">Incremental analysis?</span>
+              <p class="text-text mt-1">Cache the parsed AST per file, keyed by content hash. On file change, only re-parse that file and update its edges. Full repo re-scan only on branch switch. Keeps watch-mode updates under 50ms.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Estimate -->
+        <div class="bg-surface2 border border-accent-dim rounded-lg p-6">
+          <h3 class="font-mono text-accent font-bold text-sm mb-3">TOTAL ESTIMATE: 4-7 WEEKS</h3>
+          <p class="text-sm text-text">Phase 1 is the foundation and delivers value immediately — you can see your repo's architecture. Each subsequent phase adds a layer of polish. The tool is useful from day one and gets better incrementally.</p>
+          <div class="mt-4 flex gap-3">
+            <div class="bg-bg rounded px-3 py-2 text-center">
+              <div class="font-mono text-green text-lg font-bold">~3K</div>
+              <div class="text-text-dim text-xs font-mono">Rust lines</div>
+            </div>
+            <div class="bg-bg rounded px-3 py-2 text-center">
+              <div class="font-mono text-accent text-lg font-bold">~2K</div>
+              <div class="text-text-dim text-xs font-mono">JS/HTML lines</div>
+            </div>
+            <div class="bg-bg rounded px-3 py-2 text-center">
+              <div class="font-mono text-yellow text-lg font-bold">4</div>
+              <div class="text-text-dim text-xs font-mono">crate deps</div>
+            </div>
+            <div class="bg-bg rounded px-3 py-2 text-center">
+              <div class="font-mono text-purple text-lg font-bold">1</div>
+              <div class="text-text-dim text-xs font-mono">binary</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ===================== STATE =====================
+    const state = {
+      currentTab: 'comparison',
+      zoomLevel: 'module',
+      zoomScale: 1,
+      heatmap: false,
+      sessionRunning: false,
+      sessionTimer: null,
+      changeHistory: [],
+      stats: { files: 0, modules: 0, added: 0, removed: 0 },
+      selectedNode: null,
+    };
+
+    const moduleInfo = {
+      main: { name: 'main.rs', lines: 1531, desc: 'Event loop, CLI parsing (clap), input routing, debounced watch refresh', files: ['main.rs'], deps: ['app', 'ui', 'git', 'watch', 'config', 'ai'] },
+      git: { name: 'git/', lines: 2121, desc: 'Shells out to git diff, parses unified diff format, staging, worktree listing, commit log', files: ['diff.rs', 'status.rs'], deps: [] },
+      app: { name: 'app/', lines: 5955, desc: 'All application state. Four diff modes, six input modes, navigation, comments, filter system', files: ['state.rs', 'filter.rs'], deps: ['git', 'ai', 'config'] },
+      ui: { name: 'ui/', lines: 6200, desc: 'Ratatui rendering. Viewport-based, syntax highlighting, panel system, overlays', files: ['mod.rs', 'diff_view.rs', 'file_tree.rs', 'panel.rs', 'status_bar.rs', 'styles.rs', 'highlight.rs', 'overlay.rs', 'settings.rs', 'utils.rs'], deps: ['app', 'ai'] },
+      ai: { name: 'ai/', lines: 2954, desc: 'Data model and file loader for AI review artifacts. Reads .er-*.json sidecar files', files: ['review.rs', 'loader.rs', 'relocate.rs'], deps: [] },
+      watch: { name: 'watch/', lines: 64, desc: 'File system watcher using notify + debounce. 500ms debounce, mpsc channel', files: ['mod.rs'], deps: [] },
+      github: { name: 'github.rs', lines: 898, desc: 'GitHub PR URL parsing, gh CLI wrapper, two-way comment sync', files: ['github.rs'], deps: ['git'] },
+      config: { name: 'config.rs', lines: 346, desc: 'TOML config, feature flags, settings items, load/save', files: ['config.rs'], deps: [] },
+    };
+
+    const changeScenarios = [
+      { module: 'ui', file: 'diff_view.rs', desc: 'Update viewport rendering for inline comments', added: 23, removed: 8 },
+      { module: 'app', file: 'state.rs', desc: 'Add bookmark navigation to App struct', added: 45, removed: 12 },
+      { module: 'git', file: 'diff.rs', desc: 'Fix parser edge case for binary files', added: 7, removed: 3 },
+      { module: 'ai', file: 'review.rs', desc: 'Add staleness check for review questions', added: 18, removed: 5 },
+      { module: 'ui', file: 'styles.rs', desc: 'Adjust highlight contrast for dark terminals', added: 4, removed: 4 },
+      { module: 'main', file: 'main.rs', desc: 'Wire up split diff keybinding', added: 12, removed: 2 },
+      { module: 'github', file: 'github.rs', desc: 'Handle PR merge commit detection', added: 31, removed: 9 },
+      { module: 'config', file: 'config.rs', desc: 'Add blame_annotations feature flag', added: 8, removed: 1 },
+      { module: 'app', file: 'filter.rs', desc: 'New preset: show only modified files', added: 15, removed: 0 },
+      { module: 'ui', file: 'file_tree.rs', desc: 'Render change count badges next to files', added: 19, removed: 6 },
+      { module: 'watch', file: 'mod.rs', desc: 'Add .git/refs/ watching for commits', added: 11, removed: 3 },
+      { module: 'ai', file: 'loader.rs', desc: 'Switch from polling to inotify for sidecar detection', added: 28, removed: 14 },
+    ];
+    let scenarioIndex = 0;
+
+    // ===================== TAB SWITCHING =====================
+    function switchTab(tab) {
+      state.currentTab = tab;
+      document.querySelectorAll('.page-section').forEach(s => s.classList.remove('visible'));
+      document.getElementById(`tab-${tab}`).classList.add('visible');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    }
+
+    // ===================== ZOOM =====================
+    function setZoomLevel(level) {
+      state.zoomLevel = level;
+      document.querySelectorAll('.zoom-btn').forEach(b => {
+        const isActive = b.dataset.zoom === level;
+        b.classList.toggle('active', isActive);
+        b.style.background = isActive ? 'rgba(57,186,230,0.15)' : 'transparent';
+        b.style.borderColor = isActive ? 'rgba(57,186,230,0.4)' : '#2d3a4a';
+        b.style.color = isActive ? '#39bae6' : '#6b7d93';
+      });
+    }
+
+    function zoomDiagram(dir) {
+      if (dir === 0) state.zoomScale = 1;
+      else state.zoomScale = Math.max(0.5, Math.min(2, state.zoomScale + dir * 0.2));
+      document.getElementById('diagram-container').style.transform = `scale(${state.zoomScale})`;
+      document.getElementById('zoom-label').textContent = Math.round(state.zoomScale * 100) + '%';
+    }
+
+    // ===================== NODE SELECT =====================
+    function selectNode(id) {
+      state.selectedNode = id;
+      const info = moduleInfo[id];
+      if (!info) return;
+      const detail = document.getElementById('node-detail');
+      document.getElementById('detail-title').textContent = info.name;
+      document.getElementById('detail-content').innerHTML = `
+        <div class="text-text mb-2">${info.desc}</div>
+        <div class="flex gap-4 mb-2">
+          <span class="text-accent">${info.lines.toLocaleString()} lines</span>
+          <span class="text-text-dim">${info.files.length} file${info.files.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="text-text-dim mb-1">Files:</div>
+        ${info.files.map(f => `<div class="text-text pl-2">· ${f}</div>`).join('')}
+        ${info.deps.length > 0 ? `<div class="text-text-dim mt-2 mb-1">Depends on:</div>${info.deps.map(d => `<div class="text-accent pl-2">→ ${moduleInfo[d].name}</div>`).join('')}` : ''}
+      `;
+      detail.classList.remove('hidden');
+      detail.classList.add('fade-in');
+    }
+
+    // ===================== CHANGE SIMULATION =====================
+    function simulateChange(scenario) {
+      if (!scenario) {
+        scenario = changeScenarios[scenarioIndex % changeScenarios.length];
+        scenarioIndex++;
+      }
+      highlightNode(scenario.module, 'active');
+      state.stats.files++;
+      state.stats.added += scenario.added;
+      state.stats.removed += scenario.removed;
+      const modulesHit = new Set(state.changeHistory.map(c => c.module));
+      modulesHit.add(scenario.module);
+      state.stats.modules = modulesHit.size;
+      document.getElementById('stat-files').textContent = state.stats.files;
+      document.getElementById('stat-modules').textContent = state.stats.modules;
+      document.getElementById('stat-added').textContent = '+' + state.stats.added;
+      document.getElementById('stat-removed').textContent = '-' + state.stats.removed;
+      state.changeHistory.unshift({ ...scenario, time: new Date() });
+      renderActivityFeed();
+      document.getElementById('last-change-time').textContent = 'just now';
+      document.getElementById('selected-info').textContent = `${scenario.file}: ${scenario.desc}`;
+      setTimeout(() => highlightNode(scenario.module, 'recent'), 3000);
+      setTimeout(() => highlightNode(scenario.module, 'normal'), 15000);
+    }
+
+    function highlightNode(moduleId, level) {
+      const node = document.getElementById(`node-${moduleId}`);
+      if (!node) return;
+      const rect = node.querySelector('rect');
+      if (!rect) return;
+      node.classList.remove('pulse-active', 'pulse-yellow');
+      if (level === 'active') {
+        rect.setAttribute('stroke', '#7fd962');
+        rect.setAttribute('stroke-width', '2.5');
+        node.setAttribute('filter', 'url(#glow-green)');
+        node.classList.add('pulse-active');
+      } else if (level === 'recent') {
+        rect.setAttribute('stroke', '#ffb454');
+        rect.setAttribute('stroke-width', '2');
+        node.setAttribute('filter', 'url(#glow-yellow)');
+        node.classList.add('pulse-yellow');
+      } else {
+        rect.setAttribute('stroke', '#2d3a4a');
+        rect.setAttribute('stroke-width', '1.5');
+        node.removeAttribute('filter');
+      }
+      document.querySelectorAll(`[id^="edge-${moduleId}"], [id$="-${moduleId}"]`).forEach(edge => {
+        if (level === 'active') { edge.setAttribute('stroke', '#7fd962'); edge.setAttribute('stroke-width', '2'); }
+        else if (level === 'recent') { edge.setAttribute('stroke', '#ffb454'); edge.setAttribute('stroke-width', '1.5'); }
+        else { edge.setAttribute('stroke', '#2d3a4a'); edge.setAttribute('stroke-width', '1.5'); }
+      });
+    }
+
+    function renderActivityFeed() {
+      const feed = document.getElementById('activity-feed');
+      feed.innerHTML = state.changeHistory.slice(0, 20).map((change) => {
+        const age = Date.now() - change.time.getTime();
+        const level = age < 3000 ? 'active' : age < 15000 ? 'recent' : '';
+        const timeStr = age < 60000 ? `${Math.round(age/1000)}s ago` : `${Math.round(age/60000)}m ago`;
+        return `
+          <div class="feed-item ${level} py-2">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-mono text-xs ${level === 'active' ? 'text-green' : level === 'recent' ? 'text-yellow' : 'text-text-dim'}">${change.module}/</span>
+              <span class="font-mono text-xs text-text">${change.file}</span>
+            </div>
+            <div class="text-xs text-text-dim">${change.desc}</div>
+            <div class="flex items-center gap-3 mt-1 text-xs font-mono">
+              <span class="text-green">+${change.added}</span>
+              <span class="text-red">-${change.removed}</span>
+              <span class="text-text-dim ml-auto">${timeStr}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ===================== AUTO DEMO =====================
+    function simulateSession() {
+      if (state.sessionRunning) {
+        clearInterval(state.sessionTimer);
+        state.sessionRunning = false;
+        document.getElementById('session-btn').textContent = '⟳ Auto Demo';
+        document.getElementById('session-btn').style.borderColor = 'rgba(57,186,230,0.3)';
+        return;
+      }
+      state.sessionRunning = true;
+      document.getElementById('session-btn').textContent = '⏹ Stop Demo';
+      document.getElementById('session-btn').style.borderColor = 'rgba(240,113,120,0.5)';
+      simulateChange();
+      state.sessionTimer = setInterval(() => {
+        simulateChange();
+        if (Math.random() > 0.6) setTimeout(() => simulateChange(), 400);
+      }, 2500 + Math.random() * 1500);
+    }
+
+    function toggleHeatmap() {
+      state.heatmap = !state.heatmap;
+      const btn = document.getElementById('heatmap-btn');
+      btn.style.borderColor = state.heatmap ? 'rgba(255,143,64,0.5)' : '#2d3a4a';
+      btn.style.color = state.heatmap ? '#ff8f40' : '#6b7d93';
+      if (state.heatmap) {
+        const freq = { ui: 0.9, app: 0.85, git: 0.5, ai: 0.6, main: 0.4, watch: 0.15, github: 0.3, config: 0.2 };
+        Object.entries(freq).forEach(([mod, f]) => {
+          const rect = document.getElementById(`node-${mod}`)?.querySelector('rect');
+          if (!rect) return;
+          const r = Math.round(255 * f), g = Math.round(100 * (1-f)), b = 50;
+          rect.setAttribute('fill', `rgba(${r},${g},${b},0.2)`);
+          rect.setAttribute('stroke', `rgba(${r},${g},${b},0.6)`);
+        });
+      } else {
+        Object.keys(moduleInfo).forEach(mod => {
+          const rect = document.getElementById(`node-${mod}`)?.querySelector('rect');
+          if (!rect) return;
+          rect.setAttribute('fill', '#151b23');
+          rect.setAttribute('stroke', '#2d3a4a');
+        });
+      }
+    }
+
+    // ===================== INIT =====================
+    document.addEventListener('DOMContentLoaded', () => {
+      setZoomLevel('module');
+      renderActivityFeed();
+      setInterval(renderActivityFeed, 5000);
+    });
+  </script>
+</body>
+</html>
