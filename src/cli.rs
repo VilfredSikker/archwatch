@@ -16,3 +16,5 @@ pub struct Args {
     #[arg(long)]
     pub no_open: bool,
 }
+
+

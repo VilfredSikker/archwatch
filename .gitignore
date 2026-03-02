@@ -8,10 +8,18 @@
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing / automation
+.playwright-mcp/
+*.png
+
+# Work directory (mission artifacts)
+.work/
 
 # ArchWatch session files
 .aw-session.json

@@ -28,12 +28,58 @@
       <span class="stat-sep">·</span>
       <span class="stat-item"><span class="stat-value" id="stat-ms">—</span><span class="stat-label">ms</span></span>
     </div>
-    <div class="header-right">
+    <div class="header-right" style="display:flex;gap:6px;align-items:center;">
+      <div class="mode-toggle" id="mode-toggle">
+        <button class="mode-btn active" data-mode="live">LIVE</button>
+        <button class="mode-btn" data-mode="diff">DIFF</button>
+      </div>
+      <button class="btn-icon" id="btn-snapshot" title="Snapshot (s)">&#x229E;</button>
+      <button class="btn-icon" id="btn-autofocus" title="Auto-focus (f)">&#x25CE;</button>
+      <button class="btn-icon active" id="btn-changed-only" title="Changed files only (c)">&#x25C7;</button>
+      <button class="btn-icon" id="btn-folders" title="Folder navigation (n)">&#x2630;</button>
+      <div class="branch-select hidden" id="branch-select">
+        <span class="branch-label">vs</span>
+        <input type="text" id="branch-input" value="main" size="10">
+        <button class="btn-icon" id="btn-diff-refresh">&#x21BB;</button>
+      </div>
+      <button class="btn-icon" id="btn-activity" title="Toggle activity feed (a)">≡</button>
       <button class="btn-icon" id="btn-reset" title="Reset view">⊙</button>
     </div>
   </header>
 
+  <aside id="folder-nav" class="folder-nav">
+    <div class="folder-nav-header">
+      <span class="folder-nav-title">FOLDERS</span>
+      <button class="activity-close" id="folder-nav-close" title="Close">&#x2715;</button>
+    </div>
+    <div class="folder-nav-tree" id="folder-nav-tree"></div>
+  </aside>
+
   <div id="diagram"></div>
+
+  <aside id="activity-sidebar">
+    <div class="activity-header">
+      <span class="activity-title">ACTIVITY</span>
+      <button class="activity-close" id="activity-close" title="Close">✕</button>
+    </div>
+    <div class="activity-session-stats" id="activity-session-stats">
+      <div class="session-stat">
+        <span class="session-stat-value" id="stat-changed-files">0</span>
+        <span class="session-stat-label">files changed</span>
+      </div>
+      <div class="session-stat">
+        <span class="session-stat-value" id="stat-modules-hit">0</span>
+        <span class="session-stat-label">modules hit</span>
+      </div>
+      <div class="session-stat">
+        <span class="session-stat-value" id="stat-lines-delta">+0</span>
+        <span class="session-stat-label">lines ±</span>
+      </div>
+    </div>
+    <div class="activity-list" id="activity-list">
+      <div class="activity-empty">No changes yet</div>
+    </div>
+  </aside>
 
   <div id="tooltip" class="tooltip hidden">
     <div class="tooltip-title" id="tooltip-title"></div>
@@ -42,27 +88,65 @@
 
   <div id="legend">
     <div class="legend-title">LEGEND</div>
-    <div class="legend-item">
-      <svg width="16" height="16" viewBox="0 0 16 16">
-        <rect x="1" y="1" width="14" height="14" rx="3" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
-        <text x="8" y="11" text-anchor="middle" fill="#6b7d93" font-size="8" font-family="JetBrains Mono">M</text>
-      </svg>
-      <span>Module</span>
+    <div id="legend-live">
+      <div class="legend-item">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <rect x="1" y="1" width="14" height="14" rx="3" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+          <text x="8" y="11" text-anchor="middle" fill="#6b7d93" font-size="8" font-family="JetBrains Mono">M</text>
+        </svg>
+        <span>Module</span>
+      </div>
+      <div class="legend-item">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <rect x="1" y="1" width="14" height="14" rx="3" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
+          <text x="8" y="11" text-anchor="middle" fill="#6b7d93" font-size="8" font-family="JetBrains Mono">F</text>
+        </svg>
+        <span>File</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line"></div>
+        <span>Dependency</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-line strong"></div>
+        <span>Strong dep</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-gradient"></div>
+        <span>Change frequency</span>
+      </div>
     </div>
-    <div class="legend-item">
-      <svg width="16" height="16" viewBox="0 0 16 16">
-        <rect x="1" y="1" width="14" height="14" rx="3" fill="#151b23" stroke="#2d3a4a" stroke-width="1.5"/>
-        <text x="8" y="11" text-anchor="middle" fill="#6b7d93" font-size="8" font-family="JetBrains Mono">F</text>
-      </svg>
-      <span>File</span>
-    </div>
-    <div class="legend-item">
-      <div class="legend-line"></div>
-      <span>Dependency</span>
-    </div>
-    <div class="legend-item">
-      <div class="legend-line strong"></div>
-      <span>Strong dep</span>
+    <div id="legend-diff" class="hidden">
+      <div class="legend-item">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <rect x="1" y="1" width="14" height="14" rx="3" fill="#0d1e2e" stroke="#38bdf8" stroke-width="1.5"/>
+        </svg>
+        <span>Added</span>
+      </div>
+      <div class="legend-item">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <rect x="1" y="1" width="14" height="14" rx="3" fill="#0d2035" stroke="#0ea5e9" stroke-width="1.5"/>
+        </svg>
+        <span>Modified</span>
+      </div>
+      <div class="legend-item">
+        <svg width="16" height="16" viewBox="0 0 16 16">
+          <rect x="1" y="1" width="14" height="14" rx="3" fill="#2b1a1a" stroke="#f87171" stroke-width="1.5" stroke-dasharray="4 2"/>
+        </svg>
+        <span>Deleted</span>
+      </div>
+      <div class="legend-item" style="flex-direction: column; gap: 2px; margin-top: 4px;">
+        <span style="font-size: 10px; opacity: 0.6;">Change intensity</span>
+        <div style="display: flex; align-items: center; gap: 6px; width: 100%;">
+          <span style="font-size: 9px; opacity: 0.5;">1</span>
+          <div class="legend-diff-gradient" style="flex-grow: 1;"></div>
+          <span style="font-size: 9px; opacity: 0.5;">100+</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; width: 100%;">
+          <span style="font-size: 9px; opacity: 0.4;">few lines</span>
+          <span style="font-size: 9px; opacity: 0.4;">many lines</span>
+        </div>
+      </div>
     </div>
   </div>
 

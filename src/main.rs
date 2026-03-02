@@ -1,5 +1,6 @@
 mod analyzer;
 mod cli;
+mod git_diff;
 mod server;
 mod watcher;
 
@@ -33,7 +34,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     eprintln!("Server running at {}", url);
-    server::serve(graph, &addr).await?;
+    server::serve(graph, &addr, path).await?;
 
     Ok(())
 }
+
+

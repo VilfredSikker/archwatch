@@ -6,7 +6,7 @@ mod ts_parser;
 pub use graph::GraphData;
 
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 pub fn analyze(path: &Path) -> anyhow::Result<GraphData> {
     let start = Instant::now();

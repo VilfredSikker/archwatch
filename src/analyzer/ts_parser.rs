@@ -236,3 +236,4 @@ fn normalize_path(path: &Path) -> String {
     }
     components.join("/")
 }
+
