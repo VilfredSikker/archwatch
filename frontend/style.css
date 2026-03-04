@@ -350,12 +350,10 @@ html, body {
   0%, 100% {
     stroke: var(--green);
     stroke-width: 2;
-    filter: drop-shadow(0 0 4px rgba(127, 217, 98, 0.8));
   }
   50% {
     stroke: #a8f080;
     stroke-width: 2.5;
-    filter: drop-shadow(0 0 10px rgba(127, 217, 98, 1));
   }
 }
 
@@ -363,12 +361,10 @@ html, body {
   0%, 100% {
     stroke: var(--yellow);
     stroke-width: 1.5;
-    filter: drop-shadow(0 0 3px rgba(255, 180, 84, 0.4));
   }
   50% {
     stroke: #ffd080;
     stroke-width: 2;
-    filter: drop-shadow(0 0 6px rgba(255, 180, 84, 0.6));
   }
 }
 
@@ -569,6 +565,40 @@ html, body {
 ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #3d4a5a; }
 
+/* ─── Loading overlay ─── */
+.loading-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 10;
+  background: rgba(13, 13, 20, 0.7);
+  transition: opacity 0.15s;
+}
+.loading-overlay.hidden { display: none; }
+
+.loading-spinner {
+  width: 24px; height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-msg {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ─── Error state ─── */
 .error-overlay {
   position: fixed;
@@ -742,7 +772,6 @@ html, body {
   fill: #1a0a2e !important;
   stroke: #a855f7 !important;
   stroke-width: 2.5 !important;
-  filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.4));
 }
 
 .legend-diff-gradient {
@@ -814,3 +843,25 @@ html, body {
 .folder-item .folder-indent { display: inline-block; }
 .folder-item .folder-icon { opacity: 0.5; }
 .folder-item .folder-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Neighbor toggle ── */
+#neighbor-toggle {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  width: auto;
+  padding: 0 8px;
+}
+
+/* ── Folder diff dot indicators ── */
+.folder-diff-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.folder-diff-dot-added    { background: #38bdf8; }
+.folder-diff-dot-modified { background: #0ea5e9; }
+.folder-diff-dot-deleted  { background: #f87171; }

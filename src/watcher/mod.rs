@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 const SKIP_DIRS: &[&str] = &[
     ".git", "target", "node_modules", "dist", ".next", "build",
 ];
-const WATCH_EXTS: &[&str] = &["rs", "ts", "tsx", "js"];
+const WATCH_EXTS: &[&str] = &["rs", "ts", "tsx", "js", "jsx", "svelte"];
 
 pub fn watch(root: PathBuf) -> mpsc::Receiver<Vec<PathBuf>> {
     let (tx, rx) = mpsc::channel::<Vec<PathBuf>>(32);

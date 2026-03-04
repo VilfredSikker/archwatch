@@ -225,9 +225,11 @@ pub fn scan(root: &Path) -> anyhow::Result<(Vec<Node>, HashMap<String, String>)>
 }
 
 fn count_lines(path: &Path) -> u32 {
-    std::fs::read_to_string(path)
-        .map(|s| s.lines().count() as u32)
-        .unwrap_or(0)
+    use std::io::{BufRead, BufReader};
+    match std::fs::File::open(path) {
+        Ok(f) => BufReader::new(f).lines().count() as u32,
+        Err(_) => 0,
+    }
 }
 
 

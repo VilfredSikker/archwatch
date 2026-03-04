@@ -16,6 +16,8 @@ pub fn extract_edges(
 
     // Build a quick lookup: file path -> node id
     let file_to_node = build_file_to_node(nodes);
+    // Build a lookup: crate-style path -> node id for O(1) import resolution
+    let node_by_path = build_node_by_path(nodes);
 
     let mut edges: Vec<Edge> = Vec::new();
 
@@ -45,7 +47,7 @@ pub fn extract_edges(
         let imports = extract_rust_imports(&tree, &source_code);
 
         for import_path in imports {
-            if let Some(target_id) = resolve_rust_import(&import_path, root, nodes) {
+            if let Some(target_id) = resolve_rust_import(&import_path, &node_by_path) {
                 if target_id != source_node_id {
                     edges.push(Edge {
                         source: source_node_id.clone(),
@@ -66,6 +68,19 @@ fn build_file_to_node(nodes: &[Node]) -> HashMap<String, String> {
         for file in &node.files {
             map.insert(file.clone(), node.id.clone());
         }
+    }
+    map
+}
+
+/// Maps crate-style paths (e.g. "foo/bar", "foo") to node IDs for O(1) import resolution.
+fn build_node_by_path(nodes: &[Node]) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for node in nodes {
+        // Key by the id without a leading "src/" so it aligns with crate:: path parts
+        let key = node.id.trim_start_matches("src/").to_string();
+        map.insert(key, node.id.clone());
+        // Also key by label for single-component fallback
+        map.entry(node.label.clone()).or_insert_with(|| node.id.clone());
     }
     map
 }
@@ -137,12 +152,12 @@ fn parse_mod_item(text: &str) -> Option<String> {
     // mod foo; (not mod foo { ... })
     if text.ends_with(';') {
         let inner = text
-            .strip_prefix("pub ")
-            .unwrap_or(text)
             .strip_prefix("pub(crate) ")
-            .unwrap_or(text)
+            .or_else(|| text.strip_prefix("pub "))
+            .unwrap_or(text);
+        let inner = inner
             .strip_prefix("mod ")
-            .unwrap_or(text)
+            .unwrap_or(inner)
             .trim_end_matches(';')
             .trim();
         if !inner.contains('{') && !inner.contains(' ') {
@@ -152,44 +167,22 @@ fn parse_mod_item(text: &str) -> Option<String> {
     None
 }
 
-fn resolve_rust_import(import_path: &str, _root: &Path, nodes: &[Node]) -> Option<String> {
-    if import_path.starts_with("crate::") {
-        let path_parts: Vec<&str> = import_path
-            .strip_prefix("crate::")
-            .unwrap_or(import_path)
-            .split("::")
-            .collect();
+fn resolve_rust_import(import_path: &str, node_by_path: &HashMap<String, String>) -> Option<String> {
+    if !import_path.starts_with("crate::") {
+        return None;
+    }
 
-        // Try to match against known node IDs
-        // A crate::foo::bar import likely maps to src/foo/bar or src/foo
-        for node in nodes {
-            let node_parts: Vec<&str> = node
-                .id
-                .trim_start_matches("src/")
-                .split('/')
-                .collect();
+    let inner = import_path.strip_prefix("crate::").unwrap_or(import_path);
+    let path_parts: Vec<&str> = inner.split("::").collect();
 
-            // Check if import path parts match node id parts
-            if path_parts.len() >= node_parts.len() {
-                let matches = path_parts
-                    .iter()
-                    .zip(node_parts.iter())
-                    .all(|(a, b)| a == b);
-                if matches {
-                    return Some(node.id.clone());
-                }
-            }
-        }
-
-        // Fallback: try to find a node matching the first component
-        if let Some(first) = path_parts.first() {
-            for node in nodes {
-                if node.id.ends_with(first) || node.label == *first {
-                    return Some(node.id.clone());
-                }
-            }
+    // Try progressively shorter prefixes: foo/bar/baz → foo/bar → foo
+    for len in (1..=path_parts.len()).rev() {
+        let candidate = path_parts[..len].join("/");
+        if let Some(node_id) = node_by_path.get(&candidate) {
+            return Some(node_id.clone());
         }
     }
+
     None
 }
 

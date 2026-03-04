@@ -3,10 +3,10 @@ mod rust_parser;
 mod scanner;
 mod ts_parser;
 
-pub use graph::GraphData;
+pub use graph::{GraphData, Node};
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub fn analyze(path: &Path, flatten: &[String]) -> anyhow::Result<GraphData> {
     let start = Instant::now();
@@ -106,6 +106,22 @@ pub fn analyze(path: &Path, flatten: &[String]) -> anyhow::Result<GraphData> {
                 edge.target = edge.target[prefix_slash.len()..].to_string();
             }
         }
+
+        // Re-deduplicate edges after prefix stripping (stripping may create duplicates)
+        let mut edge_map: std::collections::HashMap<(String, String), u32> =
+            std::collections::HashMap::new();
+        for edge in edges.drain(..) {
+            if edge.source != edge.target {
+                *edge_map
+                    .entry((edge.source, edge.target))
+                    .or_insert(0) += edge.weight;
+            }
+        }
+        edges.extend(edge_map.into_iter().map(|((source, target), weight)| graph::Edge {
+            source,
+            target,
+            weight,
+        }));
     }
 
     // Sort nodes for deterministic output

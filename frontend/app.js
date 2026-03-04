@@ -13,7 +13,6 @@
   // Live update state (shared across renders)
   let nodeSel = null;
   let edgeSel = null;
-  let nodeTimers = {};
 
   // Activity feed state
   const activityLog = [];
@@ -21,7 +20,8 @@
   let sidebarOpen = false;
 
   // Enhanced visualization state
-  let currentMode = 'live'; // 'live' | 'diff'
+  let currentMode = 'live'; // 'live' | 'diff' | 'all'
+  let folderDiffMap = new Map(); // path → 'added' | 'modified' | 'deleted'
   let snapshotMode = false;
   const snapshotNodes = new Set();
   let autoFocusEnabled = true;
@@ -31,6 +31,7 @@
   const diffChurn = new Map(); // nodeId → total churn, diff mode only
   let lastDiffData = null; // stored for re-applying after module expand
   let changedFilesOnly = true; // filter expanded modules to changed files
+  let showNeighbors = true; // default: show neighbors
 
   // Hierarchy layout constants
   const HIERARCHY_Y_OFFSET = 100;
@@ -83,35 +84,43 @@
   // ─── Custom cluster force ─────────────────────────────────────────────────
   function clusterForce(nodes) {
     const strength = 0.3;
+    let tickCount = 0;
+    let cachedCentroids = new Map();
 
     function force(alpha) {
-      // Compute centroids per cluster
-      const centroids = new Map();
-      const counts = new Map();
+      // Recalculate centroids every 5th tick to avoid three iterations per tick
+      if (tickCount % 5 === 0) {
+        const centroids = new Map();
+        const counts = new Map();
 
-      for (const d of nodes) {
-        const c = d.cluster || 'default';
-        if (!centroids.has(c)) {
-          centroids.set(c, { x: 0, y: 0 });
-          counts.set(c, 0);
+        for (const d of nodes) {
+          const c = d.cluster || 'default';
+          if (!centroids.has(c)) {
+            centroids.set(c, { x: 0, y: 0 });
+            counts.set(c, 0);
+          }
+          const cen = centroids.get(c);
+          cen.x += d.x;
+          cen.y += d.y;
+          counts.set(c, counts.get(c) + 1);
         }
-        const cen = centroids.get(c);
-        cen.x += d.x;
-        cen.y += d.y;
-        counts.set(c, counts.get(c) + 1);
-      }
 
-      for (const [c, cen] of centroids) {
-        const n = counts.get(c);
-        cen.x /= n;
-        cen.y /= n;
+        for (const [c, cen] of centroids) {
+          const n = counts.get(c);
+          cen.x /= n;
+          cen.y /= n;
+        }
+
+        cachedCentroids = centroids;
       }
+      tickCount++;
 
       // Pull each node toward its cluster centroid (skip child nodes — hierarchy force owns them)
       for (const d of nodes) {
         if (d._parent) continue;
         const c = d.cluster || 'default';
-        const cen = centroids.get(c);
+        const cen = cachedCentroids.get(c);
+        if (!cen) continue;
         d.vx += (cen.x - d.x) * strength * alpha;
         d.vy += (cen.y - d.y) * strength * alpha;
       }
@@ -122,12 +131,20 @@
 
   // ─── Hierarchy force ──────────────────────────────────────────────────────
   function hierarchyForce(nodes) {
+    let cachedById = new Map();
+    let lastNodeCount = 0;
+
     return function(alpha) {
-      const byId = new Map();
-      for (const d of nodes) byId.set(d.id, d);
+      // Rebuild the id→node map only when the node array changes size
+      if (nodes.length !== lastNodeCount) {
+        cachedById = new Map();
+        for (const d of nodes) cachedById.set(d.id, d);
+        lastNodeCount = nodes.length;
+      }
+
       for (const d of nodes) {
         if (!d._parent) continue;
-        const parent = byId.get(d._parent);
+        const parent = cachedById.get(d._parent);
         if (!parent) continue;
         d.vy += (parent.y + HIERARCHY_Y_OFFSET - d.y) * HIERARCHY_FORCE_STRENGTH * alpha;
         d.vx += (parent.x - d.x) * 0.3 * alpha;
@@ -357,7 +374,7 @@
     });
 
     // ─── Force simulation ───────────────────────────────────────────────────
-    const cfForce = (alpha) => clusterForce(nodes)(alpha);
+    const cfForce = clusterForce(nodes);
 
     simulation = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(edges).id(d => d.id)
@@ -370,24 +387,16 @@
       .on('tick', tick);
 
     function tick() {
-      edgeSel
-        .attr('x1', d => d.source.x)
-        .attr('y1', d => d.source.y)
-        .attr('x2', d => {
-          // Shorten edge so arrowhead touches node border
-          const dx = d.target.x - d.source.x;
-          const dy = d.target.y - d.source.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const r = nodeRadius(d.target) + 6;
-          return d.target.x - (dx / dist) * r;
-        })
-        .attr('y2', d => {
-          const dx = d.target.x - d.source.x;
-          const dy = d.target.y - d.source.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const r = nodeRadius(d.target) + 6;
-          return d.target.y - (dy / dist) * r;
-        });
+      edgeSel.each(function(d) {
+        const dx = d.target.x - d.source.x;
+        const dy = d.target.y - d.source.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const r = nodeRadius(d.target) + 6;
+        const el = d3.select(this);
+        el.attr('x1', d.source.x).attr('y1', d.source.y)
+          .attr('x2', d.target.x - (dx / dist) * r)
+          .attr('y2', d.target.y - (dy / dist) * r);
+      });
 
       nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
     }
@@ -471,7 +480,26 @@
 
   // ─── In-place graph update ────────────────────────────────────────────────
   function applyGraphUpdate(newData, changes) {
+    // Always store the latest full graph for subgraph computation
+    originalGraphData = newData;
+
     if (!graphData || !nodeSel || !edgeSel) {
+      // First render — respect current mode
+      if (currentMode === 'live') {
+        // In live mode, only render if there are actual changes to show
+        if (changes && (changes.affected_nodes?.length || changes.modified_files_rel?.length)) {
+          const changedIds = new Set([
+            ...(changes.affected_nodes || []),
+            ...(changes.modified_files_rel || []),
+          ]);
+          const subgraph = computeImpactSubgraph(newData, changedIds, showNeighbors);
+          renderGraph(subgraph);
+          highlightChangedNodes(changes.affected_nodes, changes.modified_files_rel);
+        }
+        // Otherwise keep the empty graph — changes will trigger subgraph later
+        buildFolderTree(newData.nodes);
+        return;
+      }
       renderGraph(newData);
       return;
     }
@@ -567,9 +595,40 @@
         }
       );
 
-    // Highlight changed nodes
+    // Highlight changed nodes and handle mode-specific subgraph logic
     if (changes && changes.affected_nodes) {
       highlightChangedNodes(changes.affected_nodes, changes.modified_files_rel);
+    }
+
+    if (currentMode === 'live' && changes) {
+      const changedIds = new Set([
+        ...(changes.affected_nodes || []),
+        ...(changes.modified_files_rel || []),
+      ]);
+      if (changedIds.size > 0) {
+        const source = originalGraphData || graphData;
+        const subgraph = computeImpactSubgraph(source, changedIds, showNeighbors);
+        renderGraph(subgraph);
+        // Re-highlight on the fresh nodeSel
+        highlightChangedNodes(changes.affected_nodes, changes.modified_files_rel);
+        // renderGraph created a fresh simulation, skip the topologyChanged reheat below
+        topologyChanged = false;
+      }
+
+      // Update folderDiffMap from live changes and rebuild folder tree
+      if (changes.modified_files_rel && changes.modified_files_rel.length > 0) {
+        const liveFileMap = new Map();
+        changes.modified_files_rel.forEach(path => {
+          liveFileMap.set(path, { status: 'modified' });
+        });
+        const liveModuleMap = new Map();
+        changes.affected_nodes && changes.affected_nodes.forEach(id => {
+          liveModuleMap.set(id, { status: 'modified' });
+        });
+        folderDiffMap = buildFolderDiffMap(liveFileMap, liveModuleMap);
+        const sourceNodes = (originalGraphData || graphData)?.nodes || [];
+        buildFolderTree(sourceNodes);
+      }
     }
 
     // Auto-expand affected modules
@@ -902,9 +961,19 @@
 
     renderGraph(currentNodes, currentEdges);
 
-    // Re-apply diff overlay to newly created child nodes
-    if (currentMode === 'diff' && lastDiffData) {
-      applyDiffOverlay(lastDiffData);
+    // Re-apply diff CSS to newly created child nodes (use CSS-only to avoid recursion)
+    if ((currentMode === 'diff' || currentMode === 'all') && lastDiffData) {
+      const dData = lastDiffData;
+      if (dData.diff && dData.diff.files) {
+        const fMap = new Map();
+        const mMap = new Map();
+        dData.diff.files.forEach(f => {
+          fMap.set(f.path, f);
+          const parts = f.path.split('/');
+          if (parts.length > 1) mMap.set(parts.slice(0, -1).join('/'), f);
+        });
+        _applyDiffCssOverlay(fMap, mMap);
+      }
     }
   }
 
@@ -1129,9 +1198,9 @@
     el.style.color = delta > 0 ? 'var(--green)' : delta < 0 ? 'var(--red)' : '';
   }
 
-  // Refresh age-based colors in activity feed every 3s
+  // Refresh age-based colors in activity feed every 3s, but only when sidebar is visible
   setInterval(() => {
-    if (activityLog.length > 0) renderActivityFeed();
+    if (activityLog.length > 0 && sidebarOpen) renderActivityFeed();
   }, 3000);
 
   // ─── Activity sidebar toggle ───────────────────────────────────────────────
@@ -1173,9 +1242,14 @@
     const el = document.createElement('div');
     el.className = 'folder-item' + (path === activeFolderFilter ? ' active' : '');
     if (path === null && activeFolderFilter === null) el.classList.add('active');
+    const diffStatus = path && folderDiffMap.has(path) ? folderDiffMap.get(path) : null;
+    const dotHtml = diffStatus
+      ? `<span class="folder-diff-dot folder-diff-dot-${diffStatus}"></span>`
+      : '';
     el.innerHTML = `<span class="folder-indent" style="width:${depth * 12}px"></span>`
       + `<span class="folder-icon">${path ? '&#x25B8;' : '&#x25C6;'}</span>`
-      + `<span class="folder-name">${label}</span>`;
+      + `<span class="folder-name">${label}</span>`
+      + dotHtml;
     el.addEventListener('click', () => setFolderFilter(path));
     return el;
   }
@@ -1188,21 +1262,92 @@
     buildFolderTree(source.nodes);
 
     if (!path) {
-      renderGraph(source);
+      // Re-render appropriate view for current mode instead of always showing full graph
+      if (currentMode === 'all') {
+        renderGraph(source);
+        if (lastDiffData) applyDiffOverlay(lastDiffData);
+      } else if (currentMode === 'diff' && lastDiffData) {
+        applyDiffOverlay(lastDiffData);
+      } else if (currentMode === 'live') {
+        if (changeFrequency.size > 0) {
+          const changedIds = new Set(changeFrequency.keys());
+          const subgraph = computeImpactSubgraph(source, changedIds, showNeighbors);
+          renderGraph(subgraph);
+        } else {
+          renderGraph(source);
+        }
+      } else {
+        renderGraph(source);
+      }
       return;
     }
 
-    const filtered = source.nodes.filter(n =>
+    // Apply folder filter on top of current subgraph (live/diff) or full graph (all)
+    let baseGraph;
+    if (currentMode === 'all') {
+      baseGraph = source;
+    } else if (currentMode === 'diff' && lastDiffData) {
+      const fileMap = new Map();
+      lastDiffData.diff.files.forEach(f => {
+        fileMap.set(f.path, { status: f.status, churn: (f.additions || 0) + (f.deletions || 0) });
+      });
+      const moduleMap = new Map();
+      lastDiffData.diff.files.forEach(f => {
+        const parts = f.path.split('/');
+        if (parts.length > 1) {
+          const moduleId = parts.slice(0, -1).join('/');
+          const churn = (f.additions || 0) + (f.deletions || 0);
+          if (!moduleMap.has(moduleId)) {
+            moduleMap.set(moduleId, { status: f.status, churn });
+          } else {
+            const existing = moduleMap.get(moduleId);
+            existing.churn += churn;
+            if (existing.status !== f.status) existing.status = 'modified';
+          }
+        }
+      });
+      const changedIds = new Set([...fileMap.keys(), ...moduleMap.keys()]);
+      baseGraph = computeImpactSubgraph(source, changedIds, showNeighbors);
+    } else if (currentMode === 'live' && changeFrequency.size > 0) {
+      const changedIds = new Set(changeFrequency.keys());
+      baseGraph = computeImpactSubgraph(source, changedIds, showNeighbors);
+    } else {
+      baseGraph = source;
+    }
+
+    const filtered = baseGraph.nodes.filter(n =>
       n.id === path || n.id.startsWith(path + '/')
     );
     const filteredIds = new Set(filtered.map(n => n.id));
-    const filteredEdges = source.edges.filter(e => {
+    const filteredEdges = baseGraph.edges.filter(e => {
       const src = typeof e.source === 'object' ? e.source.id : e.source;
       const tgt = typeof e.target === 'object' ? e.target.id : e.target;
       return filteredIds.has(src) && filteredIds.has(tgt);
     });
 
     renderGraph({ nodes: filtered, edges: filteredEdges, metadata: source.metadata });
+    if ((currentMode === 'diff' || currentMode === 'all') && lastDiffData) {
+      const fileMap = new Map();
+      lastDiffData.diff.files.forEach(f => {
+        fileMap.set(f.path, { status: f.status, churn: (f.additions || 0) + (f.deletions || 0) });
+      });
+      const moduleMap = new Map();
+      lastDiffData.diff.files.forEach(f => {
+        const parts = f.path.split('/');
+        if (parts.length > 1) {
+          const moduleId = parts.slice(0, -1).join('/');
+          const churn = (f.additions || 0) + (f.deletions || 0);
+          if (!moduleMap.has(moduleId)) {
+            moduleMap.set(moduleId, { status: f.status, churn });
+          } else {
+            const existing = moduleMap.get(moduleId);
+            existing.churn += churn;
+            if (existing.status !== f.status) existing.status = 'modified';
+          }
+        }
+      });
+      _applyDiffCssOverlay(fileMap, moduleMap);
+    }
   }
 
   function toggleFolderNav() {
@@ -1261,6 +1406,17 @@
     });
   }
 
+  // ── Neighbor toggle ──
+  document.getElementById('neighbor-toggle')?.addEventListener('click', () => {
+    showNeighbors = !showNeighbors;
+    document.getElementById('neighbor-toggle').classList.toggle('active', showNeighbors);
+    if (currentMode === 'diff' && lastDiffData) {
+      applyDiffOverlay(lastDiffData);
+    } else if (currentMode === 'live') {
+      switchMode('live');
+    }
+  });
+
   // ── Diff refresh ──
   const btnDiffRefresh = document.getElementById('btn-diff-refresh');
   if (btnDiffRefresh) {
@@ -1274,7 +1430,7 @@
 
   // ── Keyboard shortcuts ──
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     switch (e.key.toLowerCase()) {
       case 's':
         btnSnapshot?.click();
@@ -1285,14 +1441,18 @@
       case 'c':
         btnChangedOnly?.click();
         break;
-      case 'd':
-        switchMode(currentMode === 'live' ? 'diff' : 'live');
+      case 'd': {
+        const modeOrder = ['live', 'diff', 'all'];
+        const nextMode = modeOrder[(modeOrder.indexOf(currentMode) + 1) % modeOrder.length];
+        switchMode(nextMode);
         break;
+      }
     }
   });
 
   // ─── Fetch graph ──────────────────────────────────────────────────────────
   function loadGraph() {
+    showLoading('Loading graph…');
     fetch('/api/graph')
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -1300,10 +1460,19 @@
       })
       .then(data => {
         originalGraphData = data;
-        renderGraph(data);
         buildFolderTree(data.nodes);
+        if (currentMode === 'live' && changeFrequency.size === 0) {
+          // No live changes yet — show empty graph, nodes appear as changes come in
+          renderGraph({ nodes: [], edges: [], metadata: data.metadata });
+        } else if (currentMode === 'all') {
+          renderGraph(data);
+        } else {
+          renderGraph(data);
+        }
+        hideLoading();
       })
       .catch(err => {
+        hideLoading();
         showError(err.message);
       });
   }
@@ -1314,6 +1483,24 @@
         <div class="error-code">Failed to load graph data</div>
         <div class="error-msg">${msg}</div>
       </div>`;
+  }
+
+  function showLoading(msg = 'Building modules…') {
+    let el = document.getElementById('loading-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'loading-overlay';
+      el.className = 'loading-overlay';
+      el.innerHTML = '<div class="loading-spinner"></div><div class="loading-msg"></div>';
+      diagramEl.appendChild(el);
+    }
+    el.querySelector('.loading-msg').textContent = msg;
+    el.classList.remove('hidden');
+  }
+
+  function hideLoading() {
+    const el = document.getElementById('loading-overlay');
+    if (el) el.classList.add('hidden');
   }
 
   // ── Diff Mode ──────────────────────────────────────────────────────────────
@@ -1342,6 +1529,95 @@
     if (churn >= 6) return 2;
     if (churn >= 1) return 1;
     return 0;
+  }
+
+  function computeImpactSubgraph(source, changedIds, includeNeighbors = true) {
+    if (!source || !source.nodes || !source.edges) return source;
+    if (!changedIds || changedIds.size === 0) {
+      return source;
+    }
+    const neighborIds = new Set(changedIds);
+    if (includeNeighbors) {
+      source.edges.forEach(e => {
+        const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+        const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+        if (changedIds.has(srcId)) neighborIds.add(tgtId);
+        if (changedIds.has(tgtId)) neighborIds.add(srcId);
+      });
+    }
+    const filteredNodes = source.nodes.filter(n => neighborIds.has(n.id));
+    const filteredEdges = source.edges.filter(e => {
+      const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+      const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+      return neighborIds.has(srcId) && neighborIds.has(tgtId);
+    });
+    return { nodes: filteredNodes, edges: filteredEdges, metadata: source.metadata };
+  }
+
+  function buildFolderDiffMap(fileMap, moduleMap) {
+    const result = new Map();
+
+    function bubbleUp(path, status) {
+      const parts = path.split('/');
+      for (let i = 1; i <= parts.length; i++) {
+        const prefix = parts.slice(0, i).join('/');
+        if (result.has(prefix) && result.get(prefix) !== status) {
+          result.set(prefix, 'modified');
+        } else if (!result.has(prefix)) {
+          result.set(prefix, status);
+        }
+      }
+    }
+
+    fileMap.forEach((entry, path) => {
+      bubbleUp(path, entry.status);
+    });
+    moduleMap.forEach((entry, path) => {
+      bubbleUp(path, entry.status);
+    });
+
+    return result;
+  }
+
+  function _applyDiffCssOverlay(fileMap, moduleMap) {
+    diffChurn.clear();
+    nodeSel.each(function (d) {
+      const el = d3.select(this);
+      el.classed('diff-added', false).classed('diff-modified', false).classed('diff-deleted', false);
+      el.attr('data-diff-tier', null);
+
+      // Direct match by file path or module path
+      let entry = fileMap.get(d.id) || moduleMap.get(d.id);
+
+      // If no direct match, check .files array for changed files within this node
+      if (!entry && d.files && d.files.length > 0) {
+        let totalChurn = 0;
+        let statuses = new Set();
+        for (const f of d.files) {
+          const fp = typeof f === 'string' ? f : f.path;
+          const fEntry = fileMap.get(fp);
+          if (fEntry) {
+            totalChurn += fEntry.churn || 0;
+            statuses.add(fEntry.status);
+          }
+        }
+        if (statuses.size > 0) {
+          entry = { status: statuses.size > 1 ? 'modified' : [...statuses][0], churn: totalChurn };
+        }
+      }
+
+      if (!entry) return;
+
+      const { status, churn } = entry;
+      el.classed('diff-' + status, true);
+
+      if (status !== 'deleted') {
+        const tier = diffTier(churn);
+        if (tier > 0) el.attr('data-diff-tier', tier);
+      }
+
+      diffChurn.set(d.id, churn);
+    });
   }
 
   function applyDiffOverlay(diffData) {
@@ -1376,32 +1652,49 @@
       }
     });
 
-    diffChurn.clear();
+    // Compute and store folder diff map, rebuild folder tree
+    folderDiffMap = buildFolderDiffMap(fileMap, moduleMap);
+    const sourceNodes = (originalGraphData || graphData)?.nodes || [];
+    buildFolderTree(sourceNodes);
 
-    nodeSel.each(function (d) {
-      const el = d3.select(this);
-      el.classed('diff-added', false).classed('diff-modified', false).classed('diff-deleted', false);
+    if (currentMode === 'diff' || currentMode === 'all') {
+      const source = originalGraphData || graphData;
+      const changedIds = new Set();
+      const diffPathSet = new Set(fileMap.keys());
 
-      const entry = fileMap.get(d.id) || moduleMap.get(d.id);
-      if (!entry) return;
+      source.nodes.forEach(n => {
+        if (fileMap.has(n.id) || moduleMap.has(n.id)) {
+          changedIds.add(n.id);
+          return;
+        }
+        if (n.files && n.files.length > 0) {
+          for (const f of n.files) {
+            const fp = typeof f === 'string' ? f : f.path;
+            if (diffPathSet.has(fp)) {
+              changedIds.add(n.id);
+              return;
+            }
+          }
+        }
+      });
 
-      const { status, churn } = entry;
-      el.classed('diff-' + status, true);
+      const subgraph = changedIds.size > 0
+        ? computeImpactSubgraph(source, changedIds, showNeighbors)
+        : source;
+      renderGraph(subgraph);
+      _applyDiffCssOverlay(fileMap, moduleMap);
+    }
 
-      if (status !== 'deleted') {
-        const tier = diffTier(churn);
-        if (tier > 0) el.attr('data-diff-tier', tier);
-      }
-
-      diffChurn.set(d.id, churn);
-    });
-
-    // Auto-expand modules with changed files
+    // Auto-expand modules with changed files (guard _expanded to prevent recursion)
     if (diffData.diff.summary && diffData.diff.summary.affected_modules) {
       diffData.diff.summary.affected_modules.forEach(moduleId => {
         const moduleNode = currentNodes.find(n => n.id === moduleId && n.kind === 'module' && !n._expanded);
-        if (moduleNode) expandModule(moduleNode);
+        if (moduleNode) {
+          expandModule(moduleNode);
+        }
       });
+      // Re-apply CSS overlay after expansion since expandModule calls renderGraph
+      _applyDiffCssOverlay(fileMap, moduleMap);
     }
   }
 
@@ -1415,6 +1708,9 @@
     });
     diffChurn.clear();
     lastDiffData = null;
+    folderDiffMap = new Map();
+    const sourceNodes = (originalGraphData || graphData)?.nodes || [];
+    buildFolderTree(sourceNodes);
   }
 
   function showDiffError(msg) {
@@ -1448,23 +1744,53 @@
       document.getElementById('legend-diff')?.classList.remove('hidden');
 
       const baseBranch = document.getElementById('branch-input')?.value || 'main';
+      showLoading('Loading diff…');
       const diffData = await fetchBranchDiff(baseBranch);
       if (diffData) {
         applyDiffOverlay(diffData);
+        hideLoading();
       } else {
+        hideLoading();
         setTimeout(() => switchMode('live'), 3000);
         return;
       }
+    } else if (mode === 'all') {
+      branchSelect?.classList.add('hidden');
+      document.getElementById('legend-live')?.classList.add('hidden');
+      document.getElementById('legend-diff')?.classList.remove('hidden');
+
+      const source = originalGraphData || graphData;
+      showLoading('Rendering…');
+      renderGraph(source);
+
+      // Re-apply diff overlay CSS without re-rendering if we have prior diff data
+      if (lastDiffData) {
+        applyDiffOverlay(lastDiffData);
+      }
+      requestAnimationFrame(() => hideLoading());
     } else {
+      // 'live' mode
       branchSelect?.classList.add('hidden');
       document.getElementById('legend-live')?.classList.remove('hidden');
       document.getElementById('legend-diff')?.classList.add('hidden');
       clearDiffOverlay();
+
+      const source = originalGraphData || graphData;
+      if (changeFrequency.size > 0) {
+        const changedIds = new Set(changeFrequency.keys());
+        const subgraph = computeImpactSubgraph(source, changedIds, showNeighbors);
+        renderGraph(subgraph);
+      } else {
+        // No live changes yet — show empty graph with a waiting message
+        renderGraph({ nodes: [], edges: [], metadata: source?.metadata });
+      }
     }
   }
 
   // ─── WebSocket ────────────────────────────────────────────────────────────
   let wsRetryTimer = null;
+  let wsRetryDelay = 1000;
+  const WS_RETRY_MAX = 30000;
 
   function connectWs() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1482,6 +1808,7 @@
 
     ws.addEventListener('open', () => {
       console.log('[ArchWatch] WebSocket connected to', url);
+      wsRetryDelay = 1000;
       setWsState('connected', 'live');
     });
 
@@ -1502,8 +1829,10 @@
 
     ws.addEventListener('close', () => {
       setWsState('error', 'reconnecting');
-      console.log('[ArchWatch] WebSocket closed, reconnecting in 2s...');
-      wsRetryTimer = setTimeout(connectWs, 2000);
+      console.log(`[ArchWatch] WebSocket closed, reconnecting in ${wsRetryDelay}ms...`);
+      clearTimeout(wsRetryTimer);
+      wsRetryTimer = setTimeout(connectWs, wsRetryDelay);
+      wsRetryDelay = Math.min(wsRetryDelay * 2, WS_RETRY_MAX);
     });
 
     ws.addEventListener('error', () => {
@@ -1522,9 +1851,11 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       if (!graphData) return;
-      d3.select('#diagram svg').remove();
-      if (simulation) simulation.stop();
-      renderGraph(graphData);
+      const { w, h } = getDims();
+      const svg = d3.select('#diagram svg');
+      svg.attr('width', w).attr('height', h);
+      svg.select('.grid-bg').attr('width', w).attr('height', h);
+      if (simulation) simulation.alpha(0.1).restart();
     }, 200);
   });
 

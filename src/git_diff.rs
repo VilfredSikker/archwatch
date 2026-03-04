@@ -148,27 +148,28 @@ pub fn diff_against_branch(repo_path: &Path, base_branch: &str) -> anyhow::Resul
     )?;
 
     // Second pass: collect line stats per file index
-    let mut file_index: usize = 0;
     let mut line_counts: Vec<(usize, usize)> = vec![(0, 0); files.len()];
     let mut total_additions = 0usize;
     let mut total_deletions = 0usize;
 
+    let watch_prefix_clone = watch_prefix.clone();
     diff.foreach(
-        &mut |_delta, _progress| {
-            file_index += 1;
-            true
-        },
+        &mut |_delta, _progress| true,
         None,
-        Some(&mut |_delta, _hunk| {
-            true
-        }),
+        Some(&mut |_delta, _hunk| true),
         Some(&mut |delta, _hunk, line| {
-            // Identify which file this line belongs to by matching path
-            let path = delta
+            // Identify which file this line belongs to by matching path.
+            // Strip watch_prefix to match the prefix-stripped paths stored in `files`.
+            let raw_path = delta
                 .new_file()
                 .path()
                 .or_else(|| delta.old_file().path())
                 .unwrap_or(Path::new(""))
+                .to_string_lossy()
+                .into_owned();
+            let path = Path::new(&raw_path)
+                .strip_prefix(&watch_prefix_clone)
+                .unwrap_or(Path::new(&raw_path))
                 .to_string_lossy()
                 .into_owned();
             if let Some(idx) = files.iter().position(|f| f.path == path) {

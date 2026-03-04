@@ -3,12 +3,13 @@ mod state;
 
 pub use state::AppState;
 
-use crate::analyzer::{self, GraphData};
+use crate::analyzer::{self, GraphData, Node};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-pub async fn serve(graph: GraphData, addr: &str, watch_root: PathBuf, flatten: Vec<String>) -> anyhow::Result<()> {
+pub async fn serve(graph: GraphData, listener: tokio::net::TcpListener, watch_root: PathBuf, flatten: Vec<String>) -> anyhow::Result<()> {
     let (broadcast_tx, _) = broadcast::channel::<String>(64);
 
     let state = Arc::new(AppState {
@@ -38,17 +39,45 @@ pub async fn serve(graph: GraphData, addr: &str, watch_root: PathBuf, flatten: V
                 Ok(new_graph) => {
                     let affected_nodes: Vec<String> = {
                         let old_graph = state_for_watcher.graph.read().await;
-                        new_graph
+
+                        // Index old nodes by id for O(1) lookup
+                        let old_nodes_by_id: HashMap<&str, &Node> = old_graph
+                            .nodes
+                            .iter()
+                            .map(|n| (n.id.as_str(), n))
+                            .collect();
+
+                        // Nodes that were added or changed (full PartialEq comparison)
+                        let mut affected: HashSet<String> = new_graph
                             .nodes
                             .iter()
                             .filter(|n| {
-                                !old_graph
-                                    .nodes
-                                    .iter()
-                                    .any(|old| old.id == n.id && old.line_count == n.line_count)
+                                old_nodes_by_id
+                                    .get(n.id.as_str())
+                                    .map_or(true, |old| *old != *n)
                             })
                             .map(|n| n.id.clone())
-                            .collect()
+                            .collect();
+
+                        // Build edge sets for old and new graphs
+                        let old_edges: HashSet<(&str, &str)> = old_graph
+                            .edges
+                            .iter()
+                            .map(|e| (e.source.as_str(), e.target.as_str()))
+                            .collect();
+                        let new_edges: HashSet<(&str, &str)> = new_graph
+                            .edges
+                            .iter()
+                            .map(|e| (e.source.as_str(), e.target.as_str()))
+                            .collect();
+
+                        // Edges added or removed — mark their source and target nodes as affected
+                        for (src, tgt) in old_edges.symmetric_difference(&new_edges) {
+                            affected.insert(src.to_string());
+                            affected.insert(tgt.to_string());
+                        }
+
+                        affected.into_iter().collect()
                     };
 
                     let timestamp = std::time::SystemTime::now()
@@ -86,7 +115,6 @@ pub async fn serve(graph: GraphData, addr: &str, watch_root: PathBuf, flatten: V
     });
 
     let app = routes::build_router(state);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
 
     Ok(())

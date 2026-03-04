@@ -56,7 +56,7 @@ pub fn extract_edges(
 
         for import_specifier in imports {
             if let Some(target_id) =
-                resolve_ts_import(&import_specifier, &rel_path, root, nodes, &file_to_node)
+                resolve_ts_import(&import_specifier, &rel_path, &file_to_node)
             {
                 if target_id != source_node_id {
                     edges.push(Edge {
@@ -161,8 +161,6 @@ fn find_require_call(node: tree_sitter::Node, source: &str) -> Option<String> {
 fn resolve_ts_import(
     specifier: &str,
     source_rel_path: &str,
-    root: &Path,
-    nodes: &[Node],
     file_to_node: &HashMap<String, String>,
 ) -> Option<String> {
     // Skip bare specifiers (npm packages)
@@ -181,39 +179,22 @@ fn resolve_ts_import(
         normalized.clone(),
         format!("{}.ts", normalized),
         format!("{}.tsx", normalized),
+        format!("{}.js", normalized),
+        format!("{}.jsx", normalized),
+        format!("{}.svelte", normalized),
         format!("{}/index.ts", normalized),
         format!("{}/index.tsx", normalized),
     ];
 
     for candidate in &candidates {
-        // Check if this is a known file
         if let Some(node_id) = file_to_node.get(candidate.as_str()) {
             return Some(node_id.clone());
         }
     }
 
-    // Try to match against node IDs directly
-    for candidate in &candidates {
-        for node in nodes {
-            if &node.id == candidate || node.files.contains(candidate) {
-                return Some(node.id.clone());
-            }
-        }
-    }
-
-    // Try matching the directory as a module node
-    for node in nodes {
-        if node.id == normalized {
-            return Some(node.id.clone());
-        }
-    }
-
-    // Check if the actual file exists under root
-    for candidate in &candidates {
-        let abs = root.join(candidate);
-        if abs.exists() {
-            return Some(candidate.clone());
-        }
+    // Try the normalized path itself as a module node ID (directory modules)
+    if let Some(node_id) = file_to_node.get(normalized.as_str()) {
+        return Some(node_id.clone());
     }
 
     None

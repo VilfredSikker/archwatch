@@ -1,13 +1,13 @@
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct GraphData {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub metadata: GraphMetadata,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Node {
     pub id: String,
     pub label: String,
@@ -19,21 +19,21 @@ pub struct Node {
     pub files: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeKind {
     Module,
     File,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Edge {
     pub source: String,
     pub target: String,
     pub weight: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct GraphMetadata {
     pub root: String,
     pub total_lines: u32,
